@@ -1,0 +1,95 @@
+
+DROP TABLE IF EXISTS sub_task;
+DROP TABLE IF EXISTS task;
+DROP TABLE IF EXISTS sub_project;
+DROP TABLE IF EXISTS project_employee;
+DROP TABLE IF EXISTS project;
+DROP TABLE IF EXISTS employee_role;
+DROP TABLE IF EXISTS role;
+DROP TABLE IF EXISTS employee;
+
+
+CREATE TABLE employee (
+                          employee_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                          username VARCHAR(100) NOT NULL UNIQUE,
+                          password VARCHAR(255) NOT NULL,
+                          email VARCHAR(100) NOT NULL UNIQUE,
+                          role VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE role (
+                      role_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                      role_name VARCHAR(100) NOT NULL UNIQUE,
+                      role_description VARCHAR(255)
+);
+
+CREATE TABLE employee_role (
+                               employee_id BIGINT NOT NULL,
+                               role_id BIGINT NOT NULL,
+                               PRIMARY KEY (employee_id, role_id),
+                               FOREIGN KEY (employee_id) REFERENCES employee(employee_id) ON DELETE CASCADE,
+                               FOREIGN KEY (role_id) REFERENCES role(role_id) ON DELETE CASCADE
+);
+
+
+CREATE TABLE project (
+                         project_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                         employee_id BIGINT NOT NULL, -- Projektleder/opretter
+                         project_title VARCHAR(255) NOT NULL,
+                         project_description VARCHAR(1000),
+                         project_start_date DATE,
+                         project_deadline DATE,
+                         project_customer VARCHAR(255),
+                         FOREIGN KEY (employee_id) REFERENCES employee(employee_id) ON DELETE RESTRICT
+);
+
+
+CREATE TABLE project_employee (
+                                  project_id BIGINT NOT NULL,
+                                  employee_id BIGINT NOT NULL,
+                                  PRIMARY KEY (project_id, employee_id),
+                                  FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
+                                  FOREIGN KEY (employee_id) REFERENCES employee(employee_id) ON DELETE CASCADE
+);
+
+CREATE TABLE sub_project (
+                             sub_project_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                             project_id BIGINT NOT NULL,
+                             sub_project_title VARCHAR(255) NOT NULL,
+                             sub_project_description VARCHAR(1000),
+                             sub_project_start_date DATE,
+                             sub_project_deadline DATE,
+                             sub_project_duration INT,
+                             FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE
+);
+
+
+CREATE TABLE task (
+                      task_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                      employee_id BIGINT, -- Tildelt medarbejder (kan være NULL)
+                      sub_project_id BIGINT NOT NULL,
+                      task_title VARCHAR(255) NOT NULL,
+                      task_description VARCHAR(1000),
+                      task_status VARCHAR(50) NOT NULL,
+                      task_start_date DATE,
+                      task_deadline DATE,
+                      task_duration INT,
+                      task_priority VARCHAR(50),
+                      task_note VARCHAR(1000),
+                      FOREIGN KEY (employee_id) REFERENCES employee(employee_id) ON DELETE SET NULL,
+                      FOREIGN KEY (sub_project_id) REFERENCES sub_project(sub_project_id) ON DELETE CASCADE
+);
+
+CREATE TABLE sub_task (
+                          sub_task_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                          task_id BIGINT NOT NULL,
+                          sub_task_title VARCHAR(255) NOT NULL,
+                          sub_task_description VARCHAR(1000),
+                          sub_task_status VARCHAR(50) NOT NULL,
+                          sub_task_start_date DATE,
+                          sub_task_deadline DATE,
+                          sub_task_duration INT,
+                          sub_task_priority VARCHAR(50),
+                          sub_task_note VARCHAR(1000),
+                          FOREIGN KEY (task_id) REFERENCES task(task_id) ON DELETE CASCADE
+);

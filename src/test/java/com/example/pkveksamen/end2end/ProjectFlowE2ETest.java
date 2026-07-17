@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * End-to-End test:
  * - Starter hele Spring Boot app'en (webEnvironment=RANDOM_PORT)
  * - Kalder rigtige endpoints via HTTP
- * - Bruger H2-profilen (samme schema.sql), så testen er isoleret og reproducerbar
+ * - Bruger H2-profilen (samme schema-h2.sql), så testen er isoleret og reproducerbar
  *
  * Forretningsregler der testes:
  * - Kun PROJECT_MANAGER må oprette projekt / subproject / task
