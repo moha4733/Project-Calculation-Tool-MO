@@ -183,6 +183,26 @@ class SubTaskApiControllerTest {
     }
 
     @Test
+    void createSubTask_rejectsStartBeforeTaskPeriod() throws Exception {
+        SubTaskRequest request = new SubTaskRequest(
+                "Too early",
+                "Start is before parent task",
+                LocalDate.of(2026, 8, 5),
+                LocalDate.of(2026, 8, 10),
+                Status.NOT_STARTED,
+                Priority.HIGH,
+                ""
+        );
+
+        mockMvc.perform(post(subTasksUrl())
+                        .header("Authorization", "Bearer " + manager.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Subtask start date must be within task period"));
+    }
+
+    @Test
     void assignedTeamMember_canUpdateSubTaskStatusForOwnTask() throws Exception {
         createSubTask("Mine", Priority.HIGH);
 

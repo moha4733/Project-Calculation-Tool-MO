@@ -116,6 +116,26 @@ class ProjectApiControllerTest {
     }
 
     @Test
+    void createProject_rejectsDeadlineBeforeStartDate() throws Exception {
+        AuthResponse auth = register("pm", "pm@alpha.dk", EmployeeRole.PROJECT_MANAGER, AlphaRole.ProjectManager);
+
+        ProjectRequest request = new ProjectRequest(
+                "Invalid project",
+                "Deadline cannot come before the start",
+                LocalDate.of(2026, 8, 20),
+                LocalDate.of(2026, 8, 1),
+                "Alpha Solutions"
+        );
+
+        mockMvc.perform(post("/api/projects")
+                        .header("Authorization", "Bearer " + auth.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Project deadline cannot be before start date"));
+    }
+
+    @Test
     void projectsList_containsOwnedAndAssignedProjects() throws Exception {
         AuthResponse manager = register("manager", "manager@alpha.dk", EmployeeRole.PROJECT_MANAGER, AlphaRole.ProjectManager);
         AuthResponse member = register("member", "member@alpha.dk", EmployeeRole.TEAM_MEMBER, AlphaRole.Developer);

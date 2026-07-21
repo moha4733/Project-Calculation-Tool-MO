@@ -400,6 +400,17 @@ button.secondary {
     font-size: 14px;
 }
 
+.field-hint {
+    grid-column: 1 / -1;
+    padding: 10px 12px;
+    color: var(--primary-dark);
+    background: var(--primary-soft);
+    border: 1px solid #bfe1d8;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 760;
+}
+
 .toast-message {
     position: fixed;
     right: 24px;

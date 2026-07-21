@@ -183,6 +183,27 @@ class TaskApiControllerTest {
     }
 
     @Test
+    void createTask_rejectsStartBeforeSubProjectPeriod() throws Exception {
+        TaskRequest request = new TaskRequest(
+                "Too early",
+                "Start is before subproject",
+                LocalDate.of(2026, 8, 4),
+                LocalDate.of(2026, 8, 12),
+                Status.NOT_STARTED,
+                Priority.HIGH,
+                "",
+                member.employee().employeeId()
+        );
+
+        mockMvc.perform(post("/api/projects/" + projectId + "/subprojects/" + subProjectId + "/tasks")
+                        .header("Authorization", "Bearer " + manager.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Task start date must be within subproject period"));
+    }
+
+    @Test
     void assignedTeamMember_canUpdateOwnTaskStatus() throws Exception {
         createTask("Mine", Priority.HIGH, member.employee().employeeId());
 

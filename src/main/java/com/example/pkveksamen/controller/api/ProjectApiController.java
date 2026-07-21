@@ -146,6 +146,11 @@ public class ProjectApiController {
         if (request.projectName() == null || request.projectName().isBlank()) {
             return ResponseEntity.badRequest().body(new ErrorResponse("Project name is required"));
         }
+        if (request.projectStartDate() != null
+                && request.projectDeadline() != null
+                && request.projectDeadline().isBefore(request.projectStartDate())) {
+            return ResponseEntity.badRequest().body(new ErrorResponse("Project deadline cannot be before start date"));
+        }
 
         Project project = new Project();
         project.setProjectName(request.projectName());

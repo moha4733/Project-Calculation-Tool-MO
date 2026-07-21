@@ -487,12 +487,14 @@ function openSubProjectDialog(subProject = null) {
         return;
     }
 
+    const period = dateBounds(state.selectedProject.projectStartDate, state.selectedProject.projectDeadline);
     openDialog({
         title: subProject ? "Edit subproject" : "Create subproject",
         fields: [
+            hintField(`Allowed period: ${formatAllowedPeriod(period)}`),
             textField("subProjectName", "Name", subProject?.subProjectName, true),
-            dateField("subProjectStartDate", "Start date", subProject?.subProjectStartDate),
-            dateField("subProjectDeadline", "Deadline", subProject?.subProjectDeadline),
+            dateField("subProjectStartDate", "Start date", subProject?.subProjectStartDate || period.min, period),
+            dateField("subProjectDeadline", "Deadline", subProject?.subProjectDeadline || period.max, period),
             textAreaField("subProjectDescription", "Description", subProject?.subProjectDescription)
         ],
         onSubmit: async (values) => {
@@ -551,12 +553,14 @@ function openTaskDialog(task = null) {
         return;
     }
 
+    const period = dateBounds(state.selectedSubProject.subProjectStartDate, state.selectedSubProject.subProjectDeadline);
     openDialog({
         title: task ? "Edit task" : "Create task",
         fields: [
+            hintField(`Allowed period: ${formatAllowedPeriod(period)}`),
             textField("taskName", "Name", task?.taskName, true),
-            dateField("taskStartDate", "Start date", task?.taskStartDate),
-            dateField("taskDeadline", "Deadline", task?.taskDeadline),
+            dateField("taskStartDate", "Start date", task?.taskStartDate || period.min, period),
+            dateField("taskDeadline", "Deadline", task?.taskDeadline || period.max, period),
             selectField("taskStatus", "Status", statusOptions(), task?.taskStatus || "NOT_STARTED"),
             selectField("taskPriority", "Priority", priorityOptions(), task?.taskPriority || "MEDIUM"),
             selectField("assignedToEmployeeId", "Assigned to", employeeOptions(), task?.assignedEmployee?.employeeId || ""),
@@ -621,12 +625,14 @@ function openSubTaskDialog(subTask = null) {
         return;
     }
 
+    const period = dateBounds(state.selectedTask.taskStartDate, state.selectedTask.taskDeadline);
     openDialog({
         title: subTask ? "Edit subtask" : "Create subtask",
         fields: [
+            hintField(`Allowed period: ${formatAllowedPeriod(period)}`),
             textField("subTaskName", "Name", subTask?.subTaskName, true),
-            dateField("subTaskStartDate", "Start date", subTask?.subTaskStartDate),
-            dateField("subTaskDeadline", "Deadline", subTask?.subTaskDeadline),
+            dateField("subTaskStartDate", "Start date", subTask?.subTaskStartDate || period.min, period),
+            dateField("subTaskDeadline", "Deadline", subTask?.subTaskDeadline || period.max, period),
             selectField("subTaskStatus", "Status", statusOptions(), subTask?.subTaskStatus || "NOT_STARTED"),
             selectField("subTaskPriority", "Priority", priorityOptions(), subTask?.subTaskPriority || "MEDIUM"),
             textAreaField("subTaskDescription", "Description", subTask?.subTaskDescription),
@@ -714,6 +720,13 @@ async function submitDialog(event) {
 }
 
 function renderField(field) {
+    if (field.type === "hint") {
+        const hint = document.createElement("p");
+        hint.className = "field-hint";
+        hint.textContent = field.text;
+        return hint;
+    }
+
     const label = document.createElement("label");
     label.textContent = field.label;
 
@@ -737,6 +750,12 @@ function renderField(field) {
     control.name = field.name;
     control.value = field.value || "";
     control.required = Boolean(field.required);
+    if (field.min) {
+        control.min = field.min;
+    }
+    if (field.max) {
+        control.max = field.max;
+    }
     label.appendChild(control);
     return label;
 }
@@ -889,16 +908,45 @@ function textField(name, label, value = "", required = false) {
     return { name, label, value, required, type: "text" };
 }
 
-function dateField(name, label, value = "") {
-    return { name, label, value, type: "date" };
+function dateField(name, label, value = "", bounds = {}) {
+    return { name, label, value, min: bounds.min, max: bounds.max, type: "date" };
 }
 
 function textAreaField(name, label, value = "") {
     return { name, label, value, type: "textarea" };
 }
 
+function hintField(text) {
+    return { text, type: "hint" };
+}
+
 function selectField(name, label, options, value = "", required = false) {
     return { name, label, options, value, required, type: "select" };
+}
+
+function dateBounds(min, max) {
+    return { min: min || "", max: max || "" };
+}
+
+function formatAllowedPeriod({ min, max }) {
+    if (min && max) {
+        return `${formatDate(min)} to ${formatDate(max)}`;
+    }
+    if (min) {
+        return `from ${formatDate(min)}`;
+    }
+    if (max) {
+        return `until ${formatDate(max)}`;
+    }
+    return "not set on parent";
+}
+
+function formatDate(value) {
+    return new Intl.DateTimeFormat(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric"
+    }).format(new Date(`${value}T00:00:00`));
 }
 
 function statusOptions() {

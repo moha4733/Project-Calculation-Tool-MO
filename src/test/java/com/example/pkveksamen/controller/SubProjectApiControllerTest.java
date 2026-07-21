@@ -151,6 +151,26 @@ class SubProjectApiControllerTest {
                 .andExpect(jsonPath("$.message").value("Subproject start date must be within project period"));
     }
 
+    @Test
+    void createSubProject_rejectsDeadlineAfterProjectPeriod() throws Exception {
+        AuthResponse manager = register("pm", "pm@alpha.dk", EmployeeRole.PROJECT_MANAGER, AlphaRole.ProjectManager);
+        long projectId = createProject(manager.employee().employeeId());
+
+        SubProjectRequest request = new SubProjectRequest(
+                "Too late",
+                "Ends after parent project",
+                LocalDate.of(2026, 8, 10),
+                LocalDate.of(2026, 9, 1)
+        );
+
+        mockMvc.perform(post("/api/projects/" + projectId + "/subprojects")
+                        .header("Authorization", "Bearer " + manager.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Subproject deadline must be within project period"));
+    }
+
     private AuthResponse register(String username, String email, EmployeeRole role, AlphaRole alphaRole) throws Exception {
         RegisterEmployeeRequest request = new RegisterEmployeeRequest(username, "password123", email, role, alphaRole);
 
