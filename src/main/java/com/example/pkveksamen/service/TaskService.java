@@ -23,10 +23,14 @@ public class TaskService {
         this.employeeRepository = employeeRepository;
     }
 
-    public void createTask(Integer employeeId, long subProjectId, String taskName, String taskDescription
+    public Task createTask(Integer employeeId, long subProjectId, String taskName, String taskDescription
             , Status status, LocalDate startDate, LocalDate endDate, int taskDuration, Priority priority, String taskNote) {
-        taskRepository.createTask( employeeId, subProjectId, taskName, taskDescription, status,
+        Task task = taskRepository.createTask( employeeId, subProjectId, taskName, taskDescription, status,
                 startDate, endDate, taskDuration, priority, taskNote);
+        if (task.getAssignedEmployee() != null) {
+            task.getAssignedEmployee().setAlphaRoles(employeeRepository.findAlphaRolesByEmployeeId(task.getAssignedEmployee().getEmployeeId()));
+        }
+        return task;
     }
 
     public List<Task> showTaskByEmployeeId(int employeeId) {
@@ -49,10 +53,28 @@ public class TaskService {
         return tasks;
     }
 
-    public void saveTask(Task task, int employeeId, long projectId, long subProjectId) {
+    public List<Task> showTasksBySubProjectIdAndEmployeeId(long subProjectId, int employeeId) {
+        List<Task> tasks = taskRepository.showTasksBySubProjectIdAndEmployeeId(subProjectId, employeeId);
+        for (Task task : tasks) {
+            if (task.getAssignedEmployee() != null) {
+                task.getAssignedEmployee().setAlphaRoles(employeeRepository.findAlphaRolesByEmployeeId(task.getAssignedEmployee().getEmployeeId()));
+            }
+        }
+        return tasks;
+    }
+
+    public boolean taskBelongsToSubProject(long taskId, long subProjectId) {
+        return taskRepository.taskBelongsToSubProject(taskId, subProjectId);
+    }
+
+    public boolean subTaskBelongsToTask(long subTaskId, long taskId) {
+        return taskRepository.subTaskBelongsToTask(subTaskId, taskId);
+    }
+
+    public Task saveTask(Task task, int employeeId, long projectId, long subProjectId) {
         task.setTaskDuration(task.getTaskDuration()); // bare for sikkerhed
         task.recalculateDuration();
-        taskRepository.saveTask(task, employeeId, projectId, subProjectId);
+        return taskRepository.saveTask(task, employeeId, projectId, subProjectId);
     }
 
     public void deleteTask(long taskId) {
@@ -68,15 +90,15 @@ public class TaskService {
 
     }
 
-    public void createSubTask(long taskId, String subTaskName, String subTaskDescription,
+    public SubTask createSubTask(long taskId, String subTaskName, String subTaskDescription,
                               String subTaskStatus, LocalDate subTaskStartDate, LocalDate subTaskEndDate,
                               int subTaskDuration, String subTaskPriority, String subTaskNote) {
-        taskRepository.createSubTask(taskId, subTaskName, subTaskDescription, subTaskStatus,
+        return taskRepository.createSubTask(taskId, subTaskName, subTaskDescription, subTaskStatus,
                 subTaskStartDate, subTaskEndDate, subTaskDuration, subTaskPriority, subTaskNote);
     }
 
-    public void saveSubTask(SubTask subTask, long subTaskId) {
-        taskRepository.saveSubTask(subTask, subTaskId);
+    public SubTask saveSubTask(SubTask subTask, long taskId) {
+        return taskRepository.saveSubTask(subTask, taskId);
     }
 
     public List<SubTask> showSubTasksByTaskId(long taskId) {

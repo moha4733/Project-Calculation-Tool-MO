@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Alpha Solution Calculation Tool</title>
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<main class="app-shell">
+    <section class="topbar">
+        <div>
+            <h1>Calculation Tool</h1>
+            <p>API-first frontend preview</p>
+        </div>
+        <button id="logoutButton" class="secondary" type="button" hidden>Logout</button>
+    </section>
+
+    <section id="loginPanel" class="panel">
+        <h2>Login</h2>
+        <label>
+            API base URL
+            <input id="apiBaseUrl" type="url" value="http://localhost:8080">
+        </label>
+        <label>
+            Username
+            <input id="username" type="text" autocomplete="username">
+        </label>
+        <label>
+            Password
+            <input id="password" type="password" autocomplete="current-password">
+        </label>
+        <button id="loginButton" type="button">Login</button>
+        <p id="loginMessage" class="message" role="status"></p>
+    </section>
+
+    <section id="workspace" class="workspace" hidden>
+        <aside class="panel list-panel">
+            <div class="panel-header">
+                <h2>Projects</h2>
+                <div class="toolbar">
+                    <button id="createProjectButton" class="icon-button" type="button" title="Create project" hidden>+</button>
+                    <button id="refreshProjectsButton" class="icon-button secondary" type="button" title="Refresh projects">↻</button>
+                </div>
+            </div>
+            <div id="projectsList" class="list"></div>
+        </aside>
+
+        <section class="panel members-panel">
+            <div class="panel-header">
+                <h2 id="selectedMembersTitle">Members</h2>
+                <button id="addMemberButton" class="icon-button" type="button" title="Add member" hidden>+</button>
+            </div>
+            <div id="membersList" class="list"></div>
+        </section>
+
+        <section class="panel detail-panel">
+            <div class="panel-header">
+                <h2 id="selectedProjectTitle">Subprojects</h2>
+                <button id="createSubProjectButton" class="icon-button" type="button" title="Create subproject" hidden>+</button>
+            </div>
+            <div id="subProjectsList" class="list"></div>
+        </section>
+
+        <section class="panel detail-panel">
+            <div class="panel-header">
+                <h2 id="selectedSubProjectTitle">Tasks</h2>
+                <button id="createTaskButton" class="icon-button" type="button" title="Create task" hidden>+</button>
+            </div>
+            <div id="tasksList" class="list"></div>
+        </section>
+
+        <section class="panel detail-panel">
+            <div class="panel-header">
+                <h2 id="selectedTaskTitle">Subtasks</h2>
+                <button id="createSubTaskButton" class="icon-button" type="button" title="Create subtask" hidden>+</button>
+            </div>
+            <div id="subTasksList" class="list"></div>
+        </section>
+    </section>
+
+    <p id="workspaceMessage" class="message" role="status"></p>
+</main>
+
+<dialog id="crudDialog">
+    <form id="crudForm" method="dialog" class="dialog-panel">
+        <div class="panel-header">
+            <h2 id="dialogTitle">Edit</h2>
+            <button id="closeDialogButton" class="icon-button secondary" type="button" title="Close">×</button>
+        </div>
+        <div id="dialogFields" class="form-grid"></div>
+        <p id="dialogMessage" class="message" role="status"></p>
+        <div class="dialog-actions">
+            <button id="cancelDialogButton" class="secondary" type="button">Cancel</button>
+            <button id="saveDialogButton" type="submit">Save</button>
+        </div>
+    </form>
+</dialog>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -2,6 +2,8 @@ package com.example.pkveksamen.service;
 
 import com.example.pkveksamen.model.Employee;
 import com.example.pkveksamen.repository.EmployeeRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
@@ -10,7 +12,9 @@ import java.util.List;
 @Service
 public class EmployeeService {
 
-    private EmployeeRepository employeeRepository;
+    private static final Logger logger = LoggerFactory.getLogger(EmployeeService.class);
+
+    private final EmployeeRepository employeeRepository;
 
     public EmployeeService(EmployeeRepository employeeRepository) {
         this.employeeRepository = employeeRepository;
@@ -19,15 +23,13 @@ public class EmployeeService {
     public boolean createEmployee(String username, String password, String email, String role, String alphaRoleDisplayName) {
         try {
             employeeRepository.createEmployee(username, password, email, role, alphaRoleDisplayName);
-            System.out.println("Bruger oprettet: " + username + " " + email + " med alphaRole: " + alphaRoleDisplayName);
+            logger.info("Employee created: username={}, email={}, alphaRole={}", username, email, alphaRoleDisplayName);
             return true;
         } catch (DataIntegrityViolationException e) {
-            System.out.println("Email allerede i brug: " + email);
-            e.printStackTrace();
+            logger.warn("Employee could not be created because email is already in use: {}", email);
             return false;
         } catch (Exception e) {
-            System.out.println("Uventet fejl ved oprettelse af bruger: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Unexpected error while creating employee with email={}", email, e);
             return false;
         }
     }
@@ -38,6 +40,10 @@ public class EmployeeService {
 
     public Employee getEmployeeById(int employeeId) {
         return employeeRepository.findEmployeeById(employeeId);
+    }
+
+    public Employee getEmployeeByUsername(String username) {
+        return employeeRepository.findEmployeeByUsername(username);
     }
 
     public List<Employee> getAllTeamMembers() {

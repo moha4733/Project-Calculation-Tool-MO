@@ -1,143 +1,123 @@
 package com.example.pkveksamen.repository;
 
+import com.example.pkveksamen.entity.EmployeeEntity;
+import com.example.pkveksamen.entity.RoleEntity;
 import com.example.pkveksamen.model.AlphaRole;
 import com.example.pkveksamen.model.Employee;
 import com.example.pkveksamen.model.EmployeeRole;
-import org.springframework.dao.EmptyResultDataAccessException;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.support.GeneratedKeyHolder;
-import org.springframework.jdbc.support.KeyHolder;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.sql.PreparedStatement;
-import java.sql.Statement;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public class EmployeeRepository {
 
-    private final JdbcTemplate jdbcTemplate;
+    private final EmployeeJpaRepository employeeJpaRepository;
+    private final RoleJpaRepository roleJpaRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public EmployeeRepository(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public EmployeeRepository(EmployeeJpaRepository employeeJpaRepository,
+                              RoleJpaRepository roleJpaRepository,
+                              PasswordEncoder passwordEncoder) {
+        this.employeeJpaRepository = employeeJpaRepository;
+        this.roleJpaRepository = roleJpaRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
+    @Transactional
     public void createEmployee(String username, String password, String email, String role, String alphaRoleDisplayName) {
-        KeyHolder keyHolder = new GeneratedKeyHolder();
-        String insertEmployeeSql = "INSERT INTO employee(username, password, email, role) VALUES (?, ?, ?, ?)";
-        
-        jdbcTemplate.update(connection -> {
-            PreparedStatement ps = connection.prepareStatement(insertEmployeeSql, Statement.RETURN_GENERATED_KEYS);
-            ps.setString(1, username);
-            ps.setString(2, password);
-            ps.setString(3, email);
-            ps.setString(4, role);
-            return ps;
-        }, keyHolder);
-        
-        Integer employeeId = keyHolder.getKey().intValue();
-        
-        String getRoleIdSql = "SELECT role_id FROM role WHERE role_name = ?";
-        Integer roleId;
-        try {
-            roleId = jdbcTemplate.queryForObject(getRoleIdSql, Integer.class, alphaRoleDisplayName);
-        } catch (EmptyResultDataAccessException e) {
-            KeyHolder roleKeyHolder = new GeneratedKeyHolder();
-            String insertRoleSql = "INSERT INTO role(role_name, role_description) VALUES (?, ?)";
-            jdbcTemplate.update(connection -> {
-                PreparedStatement ps = connection.prepareStatement(insertRoleSql, Statement.RETURN_GENERATED_KEYS);
-                ps.setString(1, alphaRoleDisplayName);
-                ps.setString(2, alphaRoleDisplayName);
-                return ps;
-            }, roleKeyHolder);
-            roleId = roleKeyHolder.getKey().intValue();
+        if (employeeJpaRepository.existsByUsernameOrEmail(username, email)) {
+            throw new DataIntegrityViolationException("Username or email already exists");
         }
-        
-        String insertEmployeeRoleSql = "INSERT INTO employee_role(employee_id, role_id) VALUES (?, ?)";
-        jdbcTemplate.update(insertEmployeeRoleSql, employeeId, roleId);
+
+        RoleEntity alphaRole = roleJpaRepository.findByRoleName(alphaRoleDisplayName)
+                .orElseGet(() -> roleJpaRepository.save(new RoleEntity(alphaRoleDisplayName, alphaRoleDisplayName)));
+
+        EmployeeEntity employee = new EmployeeEntity();
+        employee.setUsername(username);
+        employee.setPassword(passwordEncoder.encode(password));
+        employee.setEmail(email);
+        employee.setRole(role);
+        employee.getAlphaRoles().add(alphaRole);
+
+        employeeJpaRepository.save(employee);
     }
 
     public Employee findEmployeeById(int employeeId) {
-        String sql = "SELECT employee_id, username, password, email, role FROM employee WHERE employee_id = ?";
-
-        try {
-            return jdbcTemplate.queryForObject(sql, (rs, rowNum) -> {
-                Employee employee = new Employee();
-                int id = rs.getInt("employee_id");
-                employee.setEmployeeId(id);
-                employee.setUsername(rs.getString("username"));
-                employee.setPassword(rs.getString("password"));
-                employee.setEmail(rs.getString("email"));
-                employee.setRole(EmployeeRole.fromDisplayName(rs.getString("role")));
-                employee.setAlphaRoles(findAlphaRolesByEmployeeId(id));
-                return employee;
-            }, employeeId);
-        } catch (EmptyResultDataAccessException e) {
-            return null;
-        }
+        return employeeJpaRepository.findById((long) employeeId)
+                .map(this::toModel)
+                .orElse(null);
     }
 
-    public Integer validateLogin(String username, String password) {
-        try {
-            String sql = "SELECT employee_id FROM employee WHERE username = ? AND password = ?";
+    public Employee findEmployeeByUsername(String username) {
+        return employeeJpaRepository.findByUsername(username)
+                .map(this::toModel)
+                .orElse(null);
+    }
 
-            List<Integer> result = jdbcTemplate.query(sql, (rs, rowNum) ->
-                    rs.getInt("employee_id"),
-                    username,
-                    password);
-            if (!result.isEmpty())
-                return result.get(0);
-            else
-                return 0;
-        } catch (EmptyResultDataAccessException e) {
-            return null;
+    @Transactional
+    public Integer validateLogin(String username, String password) {
+        Optional<EmployeeEntity> employee = employeeJpaRepository.findByUsername(username);
+        if (employee.isEmpty()) {
+            return 0;
         }
+
+        EmployeeEntity entity = employee.get();
+        if (passwordEncoder.matches(password, entity.getPassword())) {
+            return entity.getId().intValue();
+        }
+
+        if (password.equals(entity.getPassword())) {
+            entity.setPassword(passwordEncoder.encode(password));
+            employeeJpaRepository.save(entity);
+            return entity.getId().intValue();
+        }
+
+        return 0;
     }
 
     public List<AlphaRole> findAlphaRolesByEmployeeId(int employeeId) {
-        String sql = "SELECT r.role_name " +
-                "FROM role r " +
-                "JOIN employee_role er ON r.role_id = er.role_id " +
-                "WHERE er.employee_id = ?";
-
-        return jdbcTemplate.query(sql, (rs, rowNum) ->
-                        AlphaRole.fromDisplayName(rs.getString("role_name")),
-                employeeId
-        );
+        return employeeJpaRepository.findById((long) employeeId)
+                .map(this::toAlphaRoles)
+                .orElse(List.of());
     }
 
     public List<Employee> getAllTeamMembers() {
-        String sql = "SELECT employee_id, username, password, email, role " +
-                "FROM employee WHERE role = ?";
-
-        return jdbcTemplate.query(sql, (rs, rowNum) -> {
-            Employee employee = new Employee();
-            int employeeId = rs.getInt("employee_id");
-            employee.setEmployeeId(employeeId);
-            employee.setUsername(rs.getString("username"));
-            employee.setPassword(rs.getString("password"));
-            employee.setEmail(rs.getString("email"));
-            employee.setRole(EmployeeRole.fromDisplayName(rs.getString("role")));
-            employee.setAlphaRoles(findAlphaRolesByEmployeeId(employeeId));
-            return employee;
-        }, EmployeeRole.TEAM_MEMBER.getDisplayName());
+        return employeeJpaRepository.findByRole(EmployeeRole.TEAM_MEMBER.getDisplayName())
+                .stream()
+                .map(this::toModel)
+                .toList();
     }
 
     public List<Employee> getAllEmployees() {
-        String sql = "SELECT employee_id, username, email, role FROM employee";
-
-        return jdbcTemplate.query(sql, (rs, rowNum) -> {
-            Employee employee = new Employee();
-            int employeeId = rs.getInt("employee_id");
-
-            employee.setEmployeeId(employeeId);
-            employee.setUsername(rs.getString("username"));
-            employee.setEmail(rs.getString("email"));
-            employee.setRole(EmployeeRole.fromDisplayName(rs.getString("role")));
-            employee.setAlphaRoles(findAlphaRolesByEmployeeId(employeeId));
-
-            return employee;
-        });
+        return employeeJpaRepository.findAll()
+                .stream()
+                .sorted(Comparator.comparing(EmployeeEntity::getId))
+                .map(this::toModel)
+                .toList();
     }
 
+    private Employee toModel(EmployeeEntity entity) {
+        Employee employee = new Employee();
+        employee.setEmployeeId(entity.getId().intValue());
+        employee.setUsername(entity.getUsername());
+        employee.setPassword(entity.getPassword());
+        employee.setEmail(entity.getEmail());
+        employee.setRole(EmployeeRole.fromDisplayName(entity.getRole()));
+        employee.setAlphaRoles(toAlphaRoles(entity));
+        return employee;
+    }
+
+    private List<AlphaRole> toAlphaRoles(EmployeeEntity entity) {
+        return entity.getAlphaRoles()
+                .stream()
+                .map(RoleEntity::getRoleName)
+                .map(AlphaRole::fromDisplayName)
+                .toList();
+    }
 }

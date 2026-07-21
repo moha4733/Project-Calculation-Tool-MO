@@ -13,7 +13,7 @@ import java.util.List;
 @Service
 public class ProjectService {
 
-    private ProjectRepository projectRepository;
+    private final ProjectRepository projectRepository;
 
     public ProjectService(ProjectRepository projectRepository) {
         this.projectRepository = projectRepository;
@@ -28,8 +28,20 @@ public class ProjectService {
         return projectRepository.showProjectsByEmployeeId(employeeId);
     }
 
+    public Employee getProjectOwner(long projectId) {
+        return projectRepository.getProjectOwner(projectId);
+    }
+
     public List<SubProject> showSubProjectsByProjectId(long projectID) {
         return projectRepository.showSubProjectsByProjectId(projectID);
+    }
+
+    public boolean canEmployeeAccessProject(int employeeId, long projectId) {
+        return projectRepository.canEmployeeAccessProject(employeeId, projectId);
+    }
+
+    public boolean subProjectBelongsToProject(long subProjectId, long projectId) {
+        return projectRepository.subProjectBelongsToProject(subProjectId, projectId);
     }
 
     public void saveProject(Project projectModel, int employeeId) {

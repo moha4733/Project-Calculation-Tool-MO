@@ -1,12 +1,16 @@
 package com.example.pkveksamen.end2end;
 
+import com.example.pkveksamen.dto.AuthResponse;
+import com.example.pkveksamen.dto.ProjectRequest;
+import com.example.pkveksamen.dto.RegisterEmployeeRequest;
+import com.example.pkveksamen.dto.SubProjectRequest;
+import com.example.pkveksamen.dto.TaskNoteRequest;
+import com.example.pkveksamen.dto.TaskRequest;
+import com.example.pkveksamen.dto.TaskStatusRequest;
 import com.example.pkveksamen.model.AlphaRole;
-import com.example.pkveksamen.model.Employee;
 import com.example.pkveksamen.model.EmployeeRole;
-import com.example.pkveksamen.model.Project;
-import com.example.pkveksamen.model.SubProject;
-import com.example.pkveksamen.model.Task;
-import com.example.pkveksamen.repository.EmployeeRepository;
+import com.example.pkveksamen.model.Priority;
+import com.example.pkveksamen.model.Status;
 import com.example.pkveksamen.repository.ProjectRepository;
 import com.example.pkveksamen.repository.TaskRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,7 +51,6 @@ class ProjectFlowE2ETest {
 
     private final TestRestTemplate restTemplate;
     private final JdbcTemplate jdbcTemplate;
-    private final EmployeeRepository employeeRepository;
     private final ProjectRepository projectRepository;
     private final TaskRepository taskRepository;
 
@@ -57,12 +60,10 @@ class ProjectFlowE2ETest {
     @Autowired
     public ProjectFlowE2ETest(TestRestTemplate restTemplate,
                               JdbcTemplate jdbcTemplate,
-                              EmployeeRepository employeeRepository,
                               ProjectRepository projectRepository,
                               TaskRepository taskRepository) {
         this.restTemplate = restTemplate;
         this.jdbcTemplate = jdbcTemplate;
-        this.employeeRepository = employeeRepository;
         this.projectRepository = projectRepository;
         this.taskRepository = taskRepository;
     }
@@ -92,179 +93,108 @@ class ProjectFlowE2ETest {
     @Test
     void projectFlow_E2E_PM_creates_everything_teamMember_works_on_task() {
 
-        // ---------------------------------------------------------
-        // 1) Arrange: opret brugere direkte i DB (hurtigt og stabilt)
-        //    (Login/session er ikke en del af jeres usecase her)
-        // ---------------------------------------------------------
-        long pmId = createEmployee("allan", "pw", "allan@mail.dk",
-                EmployeeRole.PROJECT_MANAGER, AlphaRole.ProjectManager);
+        AuthResponse manager = register("allan", "allan@mail.dk", EmployeeRole.PROJECT_MANAGER, AlphaRole.ProjectManager);
+        AuthResponse member = register("mohamed", "mohamed@mail.dk", EmployeeRole.TEAM_MEMBER, AlphaRole.UXDesigner);
+        int pmId = manager.employee().employeeId();
+        int tmId = member.employee().employeeId();
 
-        long tmId = createEmployee("mohamed", "pw", "mohamed@mail.dk",
-                EmployeeRole.TEAM_MEMBER, AlphaRole.UXDesigner);
-
-        // ---------------------------------------------------------
-        // 2) PM opretter projekt via HTTP (POST)
-        //    Matcher jeres ProjectController: POST /project/create/{employeeId}
-        // ---------------------------------------------------------
-        Project project = new Project();
-        project.setProjectName("KEA Exam Project");
-        project.setProjectDescription("E2E test project");
-        project.setProjectCustomer("KEA");
-        project.setProjectStartDate(LocalDate.of(2025, 1, 1));
-        project.setProjectDeadline(LocalDate.of(2025, 1, 10));
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-
-        // I jeres app bruger I Thymeleaf forms -> form-urlencoded
-        // Så vi sender det som key=value, ikke JSON.
-        String createProjectBody =
-                "projectName=" + url(project.getProjectName()) +
-                        "&projectDescription=" + url(project.getProjectDescription()) +
-                        "&projectCustomer=" + url(project.getProjectCustomer()) +
-                        "&startDate=" + project.getProjectStartDate() +
-                        "&deadline=" + project.getProjectDeadline();
+        ProjectRequest projectRequest = new ProjectRequest(
+                "KEA Exam Project",
+                "E2E test project",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 1, 10),
+                "KEA"
+        );
 
         ResponseEntity<String> createProjectResp = restTemplate.exchange(
-                baseUrl("/project/create/" + pmId),
+                baseUrl("/api/projects"),
                 HttpMethod.POST,
-                new HttpEntity<>(createProjectBody, headers),
+                new HttpEntity<>(projectRequest, jsonHeaders(manager.token())),
                 String.class
         );
 
-        // Redirect er normalt korrekt her (controller returner redirect)
-        assertTrue(createProjectResp.getStatusCode().is3xxRedirection()
-                        || createProjectResp.getStatusCode().is2xxSuccessful(),
-                "Expected redirect or OK on create project");
+        assertTrue(createProjectResp.getStatusCode().is2xxSuccessful(), "Expected created project");
 
-        // Verificér at projektet findes i DB (E2E: vi bruger HTTP, men vi verificerer persistence)
         List<com.example.pkveksamen.model.Project> pmProjects =
-                projectRepository.showProjectsByEmployeeId((int) pmId);
+                projectRepository.showProjectsByEmployeeId(pmId);
 
         assertEquals(1, pmProjects.size());
         long projectId = pmProjects.get(0).getProjectID();
 
-        // ---------------------------------------------------------
-        // 3) Tilføj team member til projekt (DB relation project_employee)
-        //    (Hvis I har endpoint til det, kan det også gøres via HTTP)
-        // ---------------------------------------------------------
-        projectRepository.addEmployeeToProject((int) tmId, projectId);
+        ResponseEntity<String> addMemberResp = restTemplate.exchange(
+                baseUrl("/api/projects/" + projectId + "/members/" + tmId),
+                HttpMethod.POST,
+                new HttpEntity<>(jsonHeaders(manager.token())),
+                String.class
+        );
+        assertTrue(addMemberResp.getStatusCode().is2xxSuccessful(), "Expected member added");
 
-        // ---------------------------------------------------------
-        // 4) PM opretter subproject via HTTP
-        //    Jeres controller: POST /project/savesubproject/{employeeId}/{projectId}
-        //    (I har også create-subproject flow, men savesubproject findes i jeres kode)
-        // ---------------------------------------------------------
-        SubProject subProject = new SubProject();
-        subProject.setSubProjectName("Backend");
-        subProject.setSubProjectDescription("REST API");
-        subProject.setSubProjectStartDate(LocalDate.of(2025, 1, 1));
-        subProject.setSubProjectDeadline(LocalDate.of(2025, 1, 5));
-
-        String createSubProjectBody =
-                "subProjectName=" + url(subProject.getSubProjectName()) +
-                        "&subProjectDescription=" + url(subProject.getSubProjectDescription()) +
-                        "&startDate=" + subProject.getSubProjectStartDate() +
-                        "&deadline=" + subProject.getSubProjectDeadline();
+        SubProjectRequest subProjectRequest = new SubProjectRequest(
+                "Backend",
+                "REST API",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 1, 5)
+        );
 
         ResponseEntity<String> createSubProjectResp = restTemplate.exchange(
-                baseUrl("/project/savesubproject/" + pmId + "/" + projectId),
+                baseUrl("/api/projects/" + projectId + "/subprojects"),
                 HttpMethod.POST,
-                new HttpEntity<>(createSubProjectBody, headers),
+                new HttpEntity<>(subProjectRequest, jsonHeaders(manager.token())),
                 String.class
         );
 
-        assertTrue(createSubProjectResp.getStatusCode().is3xxRedirection()
-                        || createSubProjectResp.getStatusCode().is2xxSuccessful(),
-                "Expected redirect or OK on create subproject");
+        assertTrue(createSubProjectResp.getStatusCode().is2xxSuccessful(), "Expected created subproject");
 
-        List<SubProject> subProjects = projectRepository.showSubProjectsByProjectId(projectId);
+        List<com.example.pkveksamen.model.SubProject> subProjects = projectRepository.showSubProjectsByProjectId(projectId);
         assertEquals(1, subProjects.size());
         long subProjectId = subProjects.get(0).getSubProjectID();
 
-        // ---------------------------------------------------------
-        // 5) PM opretter task og tildeler den til team member
-        //    Jeres createTask endpoint: POST /project/task/createtask/{employeeId}/{projectId}/{subProjectId}
-        //    (PM er {employeeId}, assignedToEmployeeId er tmId)
-        // ---------------------------------------------------------
-        Task task = new Task();
-        task.setTaskName("Implement Login API");
-        task.setTaskDescription("JWT login endpoint");
-        task.setTaskStartDate(LocalDate.of(2025, 1, 2));
-        task.setTaskDeadline(LocalDate.of(2025, 1, 4));
-        task.setTaskStatus(com.example.pkveksamen.model.Status.NOT_STARTED);
-        task.setTaskPriority(com.example.pkveksamen.model.Priority.HIGH);
-        task.setTaskNote(""); // initial note empty
-
-        String createTaskBody =
-                "taskName=" + url(task.getTaskName()) +
-                        "&taskDescription=" + url(task.getTaskDescription()) +
-                        "&startDate=" + task.getTaskStartDate() +
-                        "&deadline=" + task.getTaskDeadline() +
-                        "&taskStatus=" + task.getTaskStatus().name() +
-                        "&taskPriority=" + task.getTaskPriority().name() +
-                        "&taskNote=" + url(task.getTaskNote()) +
-                        "&assignedToEmployeeId=" + tmId;
+        TaskRequest taskRequest = new TaskRequest(
+                "Implement Login API",
+                "JWT login endpoint",
+                LocalDate.of(2026, 1, 2),
+                LocalDate.of(2026, 1, 4),
+                Status.NOT_STARTED,
+                Priority.HIGH,
+                "",
+                tmId
+        );
 
         ResponseEntity<String> createTaskResp = restTemplate.exchange(
-                baseUrl("/project/task/createtask/" + pmId + "/" + projectId + "/" + subProjectId),
+                baseUrl("/api/projects/" + projectId + "/subprojects/" + subProjectId + "/tasks"),
                 HttpMethod.POST,
-                new HttpEntity<>(createTaskBody, headers),
+                new HttpEntity<>(taskRequest, jsonHeaders(manager.token())),
                 String.class
         );
 
-        assertTrue(createTaskResp.getStatusCode().is3xxRedirection()
-                        || createTaskResp.getStatusCode().is2xxSuccessful(),
-                "Expected redirect or OK on create task");
+        assertTrue(createTaskResp.getStatusCode().is2xxSuccessful(), "Expected created task");
 
-        // Task skal nu være tildelt tmId
         List<com.example.pkveksamen.model.Task> tasksForTM =
-                taskRepository.showTaskByEmployeeId((int) tmId);
+                taskRepository.showTaskByEmployeeId(tmId);
 
         assertEquals(1, tasksForTM.size());
         long taskId = tasksForTM.get(0).getTaskID();
 
-        // ---------------------------------------------------------
-        // 6) TEAM MEMBER opdaterer status via HTTP
-        //    I har form action: /project/task/updatestatus/{taskId}
-        // ---------------------------------------------------------
-        String updateStatusBody =
-                "taskStatus=IN_PROGRESS" +
-                        "&employeeId=" + tmId +
-                        "&projectId=" + projectId +
-                        "&subProjectId=" + subProjectId;
-
         ResponseEntity<String> updateStatusResp = restTemplate.exchange(
-                baseUrl("/project/task/updatestatus/" + taskId),
-                HttpMethod.POST,
-                new HttpEntity<>(updateStatusBody, headers),
+                baseUrl("/api/projects/" + projectId + "/subprojects/" + subProjectId + "/tasks/" + taskId + "/status"),
+                HttpMethod.PATCH,
+                new HttpEntity<>(new TaskStatusRequest(Status.IN_PROGRESS), jsonHeaders(member.token())),
                 String.class
         );
 
-        assertTrue(updateStatusResp.getStatusCode().is3xxRedirection()
-                        || updateStatusResp.getStatusCode().is2xxSuccessful(),
-                "Expected redirect or OK on update status");
+        assertTrue(updateStatusResp.getStatusCode().is2xxSuccessful(), "Expected updated status");
 
         com.example.pkveksamen.model.Task updatedTask = taskRepository.getTaskById(taskId);
         assertEquals("IN_PROGRESS", updatedTask.getTaskStatus().name());
 
-        // ---------------------------------------------------------
-        // 7) TEAM MEMBER tilføjer note via HTTP
-        //    (Du har selv lavet endpoint til note tidligere)
-        //    POST /project/task/note/{employeeId}/{projectId}/{subProjectId}/{taskId}
-        // ---------------------------------------------------------
-        String noteBody = "taskNote=" + url("API done - needs tests");
-
         ResponseEntity<String> saveNoteResp = restTemplate.exchange(
-                baseUrl("/project/task/note/" + tmId + "/" + projectId + "/" + subProjectId + "/" + taskId),
-                HttpMethod.POST,
-                new HttpEntity<>(noteBody, headers),
+                baseUrl("/api/projects/" + projectId + "/subprojects/" + subProjectId + "/tasks/" + taskId + "/note"),
+                HttpMethod.PATCH,
+                new HttpEntity<>(new TaskNoteRequest("API done - needs tests"), jsonHeaders(member.token())),
                 String.class
         );
 
-        assertTrue(saveNoteResp.getStatusCode().is3xxRedirection()
-                        || saveNoteResp.getStatusCode().is2xxSuccessful(),
-                "Expected redirect or OK on save note");
+        assertTrue(saveNoteResp.getStatusCode().is2xxSuccessful(), "Expected saved note");
 
         updatedTask = taskRepository.getTaskById(taskId);
         assertEquals("API done - needs tests", updatedTask.getTaskNote());
@@ -272,7 +202,7 @@ class ProjectFlowE2ETest {
         // ---------------------------------------------------------
         // 8) Afslut: simple sanity checks på relationer
         // ---------------------------------------------------------
-        assertEquals(1, projectRepository.showProjectsByEmployeeId((int) pmId).size());
+        assertEquals(1, projectRepository.showProjectsByEmployeeId(pmId).size());
         assertEquals(1, projectRepository.showSubProjectsByProjectId(projectId).size());
         assertEquals(1, taskRepository.showTasksBySubProjectId(subProjectId).size());
     }
@@ -281,29 +211,24 @@ class ProjectFlowE2ETest {
         return "http://localhost:" + port + path;
     }
 
-    private static String url(String s) {
-        // Minimal url-encoding til form-urlencoded body (space -> %20 osv.)
-        // Hvis I vil gøre det helt korrekt, kan I bruge UriUtils.encodeQueryParam,
-        // men denne er ok til simple strenge.
-        return s == null ? "" : s.replace(" ", "%20");
+    private AuthResponse register(String username, String email, EmployeeRole role, AlphaRole alphaRole) {
+        RegisterEmployeeRequest request = new RegisterEmployeeRequest(username, "password123", email, role, alphaRole);
+        ResponseEntity<AuthResponse> response = restTemplate.postForEntity(
+                baseUrl("/api/auth/register"),
+                new HttpEntity<>(request, jsonHeaders(null)),
+                AuthResponse.class
+        );
+        assertTrue(response.getStatusCode().is2xxSuccessful(), "Expected registered user");
+        assertNotNull(response.getBody());
+        return response.getBody();
     }
 
-    private long createEmployee(String username,
-                                String password,
-                                String email,
-                                EmployeeRole role,
-                                AlphaRole alphaRole) {
-        employeeRepository.createEmployee(
-                username,
-                password,
-                email,
-                role.getDisplayName(),
-                alphaRole.getDisplayName()
-        );
-        return jdbcTemplate.queryForObject(
-                "SELECT employee_id FROM employee WHERE username = ?",
-                Long.class,
-                username
-        );
+    private HttpHeaders jsonHeaders(String token) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        if (token != null) {
+            headers.setBearerAuth(token);
+        }
+        return headers;
     }
 }

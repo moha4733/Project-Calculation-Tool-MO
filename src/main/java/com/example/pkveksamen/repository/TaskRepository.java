@@ -1,5 +1,9 @@
 package com.example.pkveksamen.repository;
 
+import com.example.pkveksamen.entity.EmployeeEntity;
+import com.example.pkveksamen.entity.SubProjectEntity;
+import com.example.pkveksamen.entity.SubTaskEntity;
+import com.example.pkveksamen.entity.TaskEntity;
 import com.example.pkveksamen.model.Employee;
 import com.example.pkveksamen.model.EmployeeRole;
 import com.example.pkveksamen.model.SubTask;
@@ -11,326 +15,290 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 @Repository
 public class TaskRepository {
     private final JdbcTemplate jdbcTemplate;
+    private final TaskJpaRepository taskJpaRepository;
+    private final SubTaskJpaRepository subTaskJpaRepository;
+    private final SubProjectJpaRepository subProjectJpaRepository;
+    private final EmployeeJpaRepository employeeJpaRepository;
 
-    public TaskRepository(JdbcTemplate jdbcTemplate) {
+    public TaskRepository(JdbcTemplate jdbcTemplate,
+                          TaskJpaRepository taskJpaRepository,
+                          SubTaskJpaRepository subTaskJpaRepository,
+                          SubProjectJpaRepository subProjectJpaRepository,
+                          EmployeeJpaRepository employeeJpaRepository) {
         this.jdbcTemplate = jdbcTemplate;
+        this.taskJpaRepository = taskJpaRepository;
+        this.subTaskJpaRepository = subTaskJpaRepository;
+        this.subProjectJpaRepository = subProjectJpaRepository;
+        this.employeeJpaRepository = employeeJpaRepository;
     }
 
-    public void createTask(Integer employeeId, long subProjectId, String taskName, String taskDescription,
+    public Task createTask(Integer employeeId, long subProjectId, String taskName, String taskDescription,
                            Status status, LocalDate taskStartDate, LocalDate taskDeadline, int taskDuration,
                            Priority priority, String taskNote) {
 
-        jdbcTemplate.update(
-                "INSERT INTO task (employee_id, sub_project_id, task_title, task_description, task_status, " +
-                        "task_start_date, task_deadline, task_duration, task_priority, task_note) " +
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                employeeId,
-                subProjectId,
-                taskName,
-                taskDescription,
-                status.getDisplayName(),
-                taskStartDate,
-                taskDeadline,
-                taskDuration,
-                priority.getDisplayName(),
-                taskNote
-        );
+        Task task = new Task();
+        task.setTaskName(taskName);
+        task.setTaskDescription(taskDescription);
+        task.setTaskStatus(status);
+        task.setTaskStartDate(taskStartDate);
+        task.setTaskDeadline(taskDeadline);
+        task.setTaskDuration(taskDuration);
+        task.setTaskPriority(priority);
+        task.setTaskNote(taskNote);
+        return saveTask(task, employeeId, 0, subProjectId);
     }
 
     public List<Task> showTaskByEmployeeId(int employeeId) {
-        String sql = "SELECT t.task_id, t.employee_id, t.sub_project_id, t.task_title, t.task_description, t.task_status, " +
-                "t.task_start_date, t.task_deadline, t.task_duration, t.task_priority, t.task_note, " +
-                "e.employee_id as assigned_employee_id, e.username, e.email, e.role " +
-                "FROM task t " +
-                "LEFT JOIN employee e ON t.employee_id = e.employee_id " +
-                "WHERE t.employee_id = ?";
-        return jdbcTemplate.query(sql, (rs, rowNum) -> {
-            Task task = new Task();
-            task.setTaskID(rs.getInt("task_id"));
-            task.setTaskName(rs.getString("task_title"));
-            task.setTaskDescription(rs.getString("task_description"));
-            task.setTaskStatus(Status.fromDisplayName(rs.getString("task_status")));
-            task.setTaskNote(rs.getString("task_note"));
-            task.setTaskStartDate(rs.getObject("task_start_date", LocalDate.class));
-            task.setTaskDeadline(rs.getObject("task_deadline", LocalDate.class));
-            task.setTaskDuration(rs.getInt("task_duration"));
-            task.recalculateDuration();
-            
-            if (rs.getObject("assigned_employee_id") != null) {
-                Employee employee = new Employee();
-                employee.setEmployeeId(rs.getInt("assigned_employee_id"));
-                employee.setUsername(rs.getString("username"));
-                employee.setEmail(rs.getString("email"));
-                String roleStr = rs.getString("role");
-                if (roleStr != null) {
-                    employee.setRole(EmployeeRole.fromDisplayName(roleStr));
-                }
-                task.setAssignedEmployee(employee);
-            }
-            
-            return task;
-        }, employeeId);
+        return taskJpaRepository.findByAssignedEmployeeIdOrderById(employeeId)
+                .stream()
+                .map(this::toTaskModel)
+                .toList();
     }
 
     public List<Task> showTasksBySubProjectId(long subProjectId) {
-        String sql = "SELECT t.task_id, t.employee_id, t.sub_project_id, t.task_title, t.task_description, t.task_status, " +
-                "t.task_start_date, t.task_deadline, t.task_duration, t.task_priority, t.task_note, " +
-                "e.employee_id as assigned_employee_id, e.username, e.email, e.role " +
-                "FROM task t " +
-                "LEFT JOIN employee e ON t.employee_id = e.employee_id " +
-                "WHERE t.sub_project_id = ?";
-        return jdbcTemplate.query(sql, (rs, rowNum) -> {
-            Task task = new Task();
-            task.setTaskID(rs.getInt("task_id"));
-            task.setTaskName(rs.getString("task_title"));
-            task.setTaskDescription(rs.getString("task_description"));
-            task.setTaskStatus(Status.fromDisplayName(rs.getString("task_status")));
-            task.setTaskNote(rs.getString("task_note"));
-            task.setTaskStartDate(rs.getObject("task_start_date", LocalDate.class));
-            task.setTaskDeadline(rs.getObject("task_deadline", LocalDate.class));
-            task.setTaskDuration(rs.getInt("task_duration"));
-            String priorityStr = rs.getString("task_priority");
-            if (priorityStr != null) {
-                task.setTaskPriority(Priority.fromDisplayName(priorityStr));
-            }
-            task.recalculateDuration();
-            
-            if (rs.getObject("assigned_employee_id") != null) {
-                Employee employee = new Employee();
-                employee.setEmployeeId(rs.getInt("assigned_employee_id"));
-                employee.setUsername(rs.getString("username"));
-                employee.setEmail(rs.getString("email"));
-                String roleStr = rs.getString("role");
-                if (roleStr != null) {
-                    employee.setRole(EmployeeRole.fromDisplayName(roleStr));
-                }
-                task.setAssignedEmployee(employee);
-            }
-            
-            return task;
-        }, subProjectId);
+        return taskJpaRepository.findBySubProjectIdOrderById(subProjectId)
+                .stream()
+                .map(this::toTaskModel)
+                .toList();
     }
 
-    public void saveTask(Task task, int employeeId, long projectId, long subProjectId) {
-        String sql = "INSERT INTO task (employee_id, sub_project_id, task_title, task_description, task_status, task_start_date, task_deadline, task_duration, task_priority, task_note) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    public List<Task> showTasksBySubProjectIdAndEmployeeId(long subProjectId, int employeeId) {
+        return taskJpaRepository.findBySubProjectIdAndAssignedEmployeeIdOrderById(subProjectId, employeeId)
+                .stream()
+                .map(this::toTaskModel)
+                .toList();
+    }
+
+    public boolean taskBelongsToSubProject(long taskId, long subProjectId) {
+        return taskJpaRepository.existsByIdAndSubProjectId(taskId, subProjectId);
+    }
+
+    public boolean subTaskBelongsToTask(long subTaskId, long taskId) {
+        return subTaskJpaRepository.existsByIdAndTaskId(subTaskId, taskId);
+    }
+
+    public Task saveTask(Task task, Integer employeeId, long projectId, long subProjectId) {
+        SubProjectEntity subProject = subProjectJpaRepository.findById(subProjectId)
+                .orElseThrow(() -> new NoSuchElementException("Subproject not found: " + subProjectId));
+        EmployeeEntity assignedEmployee = employeeId != null ? employeeJpaRepository.findById((long) employeeId).orElse(null) : null;
         task.recalculateDuration();
-        jdbcTemplate.update(sql,
-                employeeId,
-                subProjectId,
-                task.getTaskName(),
-                task.getTaskDescription(),
-                task.getTaskStatus().name(),
-                task.getTaskStartDate(),
-                task.getTaskDeadline(),
-                task.getTaskDuration(),
-                task.getTaskPriority().name(),
-                task.getTaskNote()
-        );
+
+        TaskEntity entity = new TaskEntity();
+        entity.setAssignedEmployee(assignedEmployee);
+        entity.setSubProject(subProject);
+        entity.setTitle(task.getTaskName());
+        entity.setDescription(task.getTaskDescription());
+        entity.setStatus((task.getTaskStatus() != null ? task.getTaskStatus() : Status.NOT_STARTED).name());
+        entity.setStartDate(task.getTaskStartDate());
+        entity.setDeadline(task.getTaskDeadline());
+        entity.setDuration(task.getTaskDuration());
+        entity.setPriority((task.getTaskPriority() != null ? task.getTaskPriority() : Priority.MEDIUM).name());
+        entity.setNote(task.getTaskNote());
+
+        TaskEntity saved = taskJpaRepository.save(entity);
+        task.setTaskID(saved.getId().intValue());
+        return toTaskModel(saved);
     }
 
     public void deleteTask(long taskId) {
-        jdbcTemplate.update("DELETE FROM task WHERE task_id = ?", taskId);
+        taskJpaRepository.deleteById(taskId);
     }
 
     public void editTask(Task task) {
-        String sql = "UPDATE task SET task_title = ?, task_description = ?, task_status = ?, task_start_date = ?, task_deadline = ?, task_duration = ?, task_priority = ?, task_note = ?, employee_id = ? WHERE task_id = ?";
-        Integer employeeId = task.getAssignedEmployee() != null ? task.getAssignedEmployee().getEmployeeId() : null;
-        jdbcTemplate.update(sql,
-                task.getTaskName(),
-                task.getTaskDescription(),
-                task.getTaskStatus().name(),
-                task.getTaskStartDate(),
-                task.getTaskDeadline(),
-                task.getTaskDuration(),
-                task.getTaskPriority().name(),
-                task.getTaskNote(),
-                employeeId,
-                task.getTaskID()
-        );
+        TaskEntity entity = taskJpaRepository.findById((long) task.getTaskID())
+                .orElseThrow(() -> new NoSuchElementException("Task not found: " + task.getTaskID()));
+        EmployeeEntity assignedEmployee = task.getAssignedEmployee() != null
+                ? employeeJpaRepository.findById((long) task.getAssignedEmployee().getEmployeeId()).orElse(null)
+                : null;
+        task.recalculateDuration();
+
+        entity.setTitle(task.getTaskName());
+        entity.setDescription(task.getTaskDescription());
+        entity.setStatus(task.getTaskStatus().name());
+        entity.setStartDate(task.getTaskStartDate());
+        entity.setDeadline(task.getTaskDeadline());
+        entity.setDuration(task.getTaskDuration());
+        entity.setPriority(task.getTaskPriority().name());
+        entity.setNote(task.getTaskNote());
+        entity.setAssignedEmployee(assignedEmployee);
+
+        taskJpaRepository.save(entity);
     }
 
     public Task getTaskById(long taskId) {
-        String sql = "SELECT t.task_id, t.employee_id, t.sub_project_id, t.task_title, t.task_description, t.task_status, " +
-                "t.task_start_date, t.task_deadline, t.task_duration, t.task_priority, t.task_note, " +
-                "e.employee_id as assigned_employee_id, e.username, e.email, e.role " +
-                "FROM task t " +
-                "LEFT JOIN employee e ON t.employee_id = e.employee_id " +
-                "WHERE t.task_id = ?";
-        return jdbcTemplate.queryForObject(sql, (rs, rowNum) -> {
-            Task task = new Task();
-            task.setTaskID(rs.getInt("task_id"));
-            task.setTaskName(rs.getString("task_title"));
-            task.setTaskDescription(rs.getString("task_description"));
-            task.setTaskStatus(Status.fromDisplayName(rs.getString("task_status")));
-            task.setTaskNote(rs.getString("task_note"));
-            task.setTaskStartDate(rs.getObject("task_start_date", LocalDate.class));
-            task.setTaskDeadline(rs.getObject("task_deadline", LocalDate.class));
-            task.setTaskDuration(rs.getInt("task_duration"));
-            String priorityStr = rs.getString("task_priority");
-            if (priorityStr != null) {
-                task.setTaskPriority(Priority.fromDisplayName(priorityStr));
-            }
-            task.recalculateDuration();
-            
-            if (rs.getObject("assigned_employee_id") != null) {
-                Employee employee = new Employee();
-                employee.setEmployeeId(rs.getInt("assigned_employee_id"));
-                employee.setUsername(rs.getString("username"));
-                employee.setEmail(rs.getString("email"));
-                String roleStr = rs.getString("role");
-                if (roleStr != null) {
-                    employee.setRole(EmployeeRole.fromDisplayName(roleStr));
-                }
-                task.setAssignedEmployee(employee);
-            }
-            
-            return task;
-        }, taskId);
+        return taskJpaRepository.findById(taskId)
+                .map(this::toTaskModel)
+                .orElseThrow(() -> new NoSuchElementException("Task not found: " + taskId));
     }
 
-    public void saveSubTask(SubTask subTask, long subTaskId) {
+    public SubTask saveSubTask(SubTask subTask, long subTaskId) {
         subTask.recalculateDuration();
-        String sql = "INSERT INTO sub_task (sub_task_id, task_id, sub_task_title, sub_task_description," +
-                " sub_task_status, sub_task_start_date, sub_task_deadline, sub_task_duration, sub_task_priority, sub_task_note) " +
-                "VALUES (?,?,?,?,?,?,?,?,?,?)";
-        jdbcTemplate.update(sql,
-                subTaskId,
-                subTask.getSubTaskName(),
-                subTask.getSubTaskDescription(),
-                subTask.getSubTaskStatus().name(),
-                subTask.getSubTaskStartDate(),
-                subTask.getSubTaskDeadline(),
-                subTask.getSubTaskDuration(),
-                subTask.getSubTaskPriority().name(),
-                subTask.getSubTaskNote()
-        );
+        TaskEntity task = taskJpaRepository.findById(subTaskId)
+                .orElseThrow(() -> new NoSuchElementException("Task not found: " + subTaskId));
+        SubTaskEntity entity = new SubTaskEntity();
+        applySubTaskModel(entity, subTask);
+        entity.setTask(task);
+        SubTaskEntity saved = subTaskJpaRepository.save(entity);
+        subTask.setSubTaskId(saved.getId());
+        return toSubTaskModel(saved);
     }
 
-    public void createSubTask(long taskId, String subTaskName, String subTaskDescription,
+    public SubTask createSubTask(long taskId, String subTaskName, String subTaskDescription,
                               String subTaskStatus, LocalDate subTaskStartDate, LocalDate subTaskDeadline,
                               int subTaskDuration, String subTaskPriority, String subTaskNote) {
 
-        String sql = "INSERT INTO sub_task (task_id, sub_task_title, sub_task_description, " +
-                "sub_task_status, sub_task_start_date, sub_task_deadline, sub_task_duration, sub_task_priority, sub_task_note) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        jdbcTemplate.update(sql,
-                taskId,
-                subTaskName,
-                subTaskDescription,
-                subTaskStatus,
-                subTaskStartDate,
-                subTaskDeadline,
-                subTaskDuration,
-                subTaskPriority,
-                subTaskNote
-        );
+        TaskEntity task = taskJpaRepository.findById(taskId)
+                .orElseThrow(() -> new NoSuchElementException("Task not found: " + taskId));
+
+        SubTask subTask = new SubTask();
+        subTask.setSubTaskName(subTaskName);
+        subTask.setSubTaskDescription(subTaskDescription);
+        subTask.setSubTaskStatus(Status.fromDisplayName(subTaskStatus));
+        subTask.setSubTaskStartDate(subTaskStartDate);
+        subTask.setSubTaskDeadline(subTaskDeadline);
+        subTask.setSubTaskDuration(subTaskDuration);
+        subTask.setSubTaskPriority(Priority.fromDisplayName(subTaskPriority));
+        subTask.setSubTaskNote(subTaskNote);
+        subTask.recalculateDuration();
+
+        SubTaskEntity entity = new SubTaskEntity();
+        applySubTaskModel(entity, subTask);
+        entity.setTask(task);
+        SubTaskEntity saved = subTaskJpaRepository.save(entity);
+        subTask.setSubTaskId(saved.getId());
+        return toSubTaskModel(saved);
     }
 
     public List<SubTask> showSubTasksByTaskId(long taskId) {
-        String sql = "SELECT sub_task_id, task_id, sub_task_title, sub_task_description, sub_task_status, " +
-                "sub_task_start_date, sub_task_deadline, sub_task_duration, sub_task_priority, sub_task_note " +
-                "FROM sub_task WHERE task_id = ?";
-        return jdbcTemplate.query(sql, (rs, rowNum) -> {
-            SubTask subTask = new SubTask();
-            subTask.setSubTaskId(rs.getLong("sub_task_id"));
-            subTask.setSubTaskName(rs.getString("sub_task_title"));
-            subTask.setSubTaskDescription(rs.getString("sub_task_description"));
-            String statusStr = rs.getString("sub_task_status");
-            if (statusStr != null) {
-                subTask.setSubTaskStatus(Status.fromDisplayName(statusStr));
-            }
-            subTask.setSubTaskNote(rs.getString("sub_task_note"));
-            subTask.setSubTaskStartDate(rs.getObject("sub_task_start_date", LocalDate.class));
-            subTask.setSubTaskDeadline(rs.getObject("sub_task_deadline", LocalDate.class));
-            subTask.setSubTaskDuration(rs.getInt("sub_task_duration"));
-            String priorityStr = rs.getString("sub_task_priority");
-            if (priorityStr != null) {
-                subTask.setSubTaskPriority(Priority.fromDisplayName(priorityStr));
-            }
-            subTask.recalculateDuration();
-            return subTask;
-        }, taskId);
+        return subTaskJpaRepository.findByTaskIdOrderById(taskId)
+                .stream()
+                .map(this::toSubTaskModel)
+                .toList();
     }
 
     public void deleteSubTask(long subTaskId) {
-        jdbcTemplate.update("DELETE FROM sub_task WHERE sub_task_id = ?", subTaskId);
+        subTaskJpaRepository.deleteById(subTaskId);
     }
 
     public void updateTaskNote(long taskId, String taskNote) {
-        String sql = "UPDATE task SET task_note = ? WHERE task_id = ?";
-        jdbcTemplate.update(sql, taskNote, taskId);
+        TaskEntity entity = taskJpaRepository.findById(taskId)
+                .orElseThrow(() -> new NoSuchElementException("Task not found: " + taskId));
+        entity.setNote(taskNote);
+        taskJpaRepository.save(entity);
     }
 
     public void updateTaskStatus(long taskId, String taskStatus) {
-        String sql = "UPDATE task SET task_status = ? WHERE task_id = ?";
-        jdbcTemplate.update(sql, taskStatus, taskId);
+        TaskEntity entity = taskJpaRepository.findById(taskId)
+                .orElseThrow(() -> new NoSuchElementException("Task not found: " + taskId));
+        entity.setStatus(taskStatus);
+        taskJpaRepository.save(entity);
     }
 
     public void updateTaskPriority(long taskId, String taskPriority) {
-        String sql = "UPDATE task SET task_priority = ? WHERE task_id = ?";
-        jdbcTemplate.update(sql, taskPriority, taskId);
+        TaskEntity entity = taskJpaRepository.findById(taskId)
+                .orElseThrow(() -> new NoSuchElementException("Task not found: " + taskId));
+        entity.setPriority(taskPriority);
+        taskJpaRepository.save(entity);
     }
 
     public void updateSubTaskStatus(long subTaskId, String subTaskStatus) {
-        String sql = "UPDATE sub_task SET sub_task_status = ? WHERE sub_task_id = ?";
-        jdbcTemplate.update(sql, subTaskStatus, subTaskId);
+        SubTaskEntity entity = subTaskJpaRepository.findById(subTaskId)
+                .orElseThrow(() -> new NoSuchElementException("Subtask not found: " + subTaskId));
+        entity.setStatus(subTaskStatus);
+        subTaskJpaRepository.save(entity);
     }
 
     public void updateSubTaskPriority(long subTaskId, String subTaskPriority) {
-        String sql = "UPDATE sub_task SET sub_task_priority = ? WHERE sub_task_id = ?";
-        jdbcTemplate.update(sql, subTaskPriority, subTaskId);
+        SubTaskEntity entity = subTaskJpaRepository.findById(subTaskId)
+                .orElseThrow(() -> new NoSuchElementException("Subtask not found: " + subTaskId));
+        entity.setPriority(subTaskPriority);
+        subTaskJpaRepository.save(entity);
     }
 
     public void updateSubTaskNote(long subTaskId, String subTaskNote) {
-        String sql = "UPDATE sub_task SET sub_task_note = ? WHERE sub_task_id = ?";
-        jdbcTemplate.update(sql, subTaskNote, subTaskId);
+        SubTaskEntity entity = subTaskJpaRepository.findById(subTaskId)
+                .orElseThrow(() -> new NoSuchElementException("Subtask not found: " + subTaskId));
+        entity.setNote(subTaskNote);
+        subTaskJpaRepository.save(entity);
     }
 
 
 
     public void editSubTask(SubTask subTask) {
         subTask.recalculateDuration();
-        String sql = "UPDATE sub_task SET sub_task_title = ?, sub_task_description = ?, sub_task_status = ?, " +
-                "sub_task_start_date = ?, sub_task_deadline = ?, sub_task_duration = ?, sub_task_priority = ?, " +
-                "sub_task_note = ? WHERE sub_task_id = ?";
-        jdbcTemplate.update(sql,
-                subTask.getSubTaskName(),
-                subTask.getSubTaskDescription(),
-                subTask.getSubTaskStatus().name(),
-                subTask.getSubTaskStartDate(),
-                subTask.getSubTaskDeadline(),
-                subTask.getSubTaskDuration(),
-                subTask.getSubTaskPriority().name(),
-                subTask.getSubTaskNote(),
-                subTask.getSubTaskId()
-        );
+        SubTaskEntity entity = subTaskJpaRepository.findById(subTask.getSubTaskId())
+                .orElseThrow(() -> new NoSuchElementException("Subtask not found: " + subTask.getSubTaskId()));
+        applySubTaskModel(entity, subTask);
+        subTaskJpaRepository.save(entity);
     }
 
     public SubTask getSubTaskById(long subTaskId) {
-        String sql = "SELECT sub_task_id, task_id, sub_task_title, sub_task_description, sub_task_status, " +
-                "sub_task_start_date, sub_task_deadline, sub_task_duration, sub_task_priority, sub_task_note " +
-                "FROM sub_task WHERE sub_task_id = ?";
-        return jdbcTemplate.queryForObject(sql, (rs, rowNum) -> {
-            SubTask subTask = new SubTask();
-            subTask.setSubTaskId(rs.getLong("sub_task_id"));
-            subTask.setSubTaskName(rs.getString("sub_task_title"));
-            subTask.setSubTaskDescription(rs.getString("sub_task_description"));
-            subTask.setSubTaskStatus(Status.fromDisplayName(rs.getString("sub_task_status")));
-            subTask.setSubTaskStartDate(rs.getObject("sub_task_start_date", LocalDate.class));
-            subTask.setSubTaskDeadline(rs.getObject("sub_task_deadline", LocalDate.class));
-            subTask.setSubTaskDuration(rs.getInt("sub_task_duration"));
-            String subTaskPriorityStr = rs.getString("sub_task_priority");
-            if (subTaskPriorityStr != null) {
-                subTask.setSubTaskPriority(Priority.fromDisplayName(subTaskPriorityStr));
-            }
-            subTask.setSubTaskNote(rs.getString("sub_task_note"));
-            subTask.recalculateDuration();
-            return subTask;
-        }, subTaskId);
+        return subTaskJpaRepository.findById(subTaskId)
+                .map(this::toSubTaskModel)
+                .orElseThrow(() -> new NoSuchElementException("Subtask not found: " + subTaskId));
+    }
+
+    private Task toTaskModel(TaskEntity entity) {
+        Task task = new Task();
+        task.setTaskID(entity.getId().intValue());
+        task.setTaskName(entity.getTitle());
+        task.setTaskDescription(entity.getDescription());
+        task.setTaskStatus(Status.fromDisplayName(entity.getStatus()));
+        task.setTaskNote(entity.getNote());
+        task.setTaskStartDate(entity.getStartDate());
+        task.setTaskDeadline(entity.getDeadline());
+        task.setTaskDuration(entity.getDuration() != null ? entity.getDuration() : 0);
+        if (entity.getPriority() != null) {
+            task.setTaskPriority(Priority.fromDisplayName(entity.getPriority()));
+        }
+        task.recalculateDuration();
+
+        if (entity.getAssignedEmployee() != null) {
+            task.setAssignedEmployee(toEmployeeModel(entity.getAssignedEmployee()));
+        }
+
+        return task;
+    }
+
+    private Employee toEmployeeModel(EmployeeEntity entity) {
+        Employee employee = new Employee();
+        employee.setEmployeeId(entity.getId().intValue());
+        employee.setUsername(entity.getUsername());
+        employee.setEmail(entity.getEmail());
+        employee.setRole(EmployeeRole.fromDisplayName(entity.getRole()));
+        return employee;
+    }
+
+    private void applySubTaskModel(SubTaskEntity entity, SubTask subTask) {
+        entity.setTitle(subTask.getSubTaskName());
+        entity.setDescription(subTask.getSubTaskDescription());
+        entity.setStatus((subTask.getSubTaskStatus() != null ? subTask.getSubTaskStatus() : Status.NOT_STARTED).name());
+        entity.setStartDate(subTask.getSubTaskStartDate());
+        entity.setDeadline(subTask.getSubTaskDeadline());
+        entity.setDuration(subTask.getSubTaskDuration());
+        entity.setPriority((subTask.getSubTaskPriority() != null ? subTask.getSubTaskPriority() : Priority.MEDIUM).name());
+        entity.setNote(subTask.getSubTaskNote());
+    }
+
+    private SubTask toSubTaskModel(SubTaskEntity entity) {
+        SubTask subTask = new SubTask();
+        subTask.setSubTaskId(entity.getId());
+        subTask.setSubTaskName(entity.getTitle());
+        subTask.setSubTaskDescription(entity.getDescription());
+        subTask.setSubTaskStatus(Status.fromDisplayName(entity.getStatus()));
+        subTask.setSubTaskStartDate(entity.getStartDate());
+        subTask.setSubTaskDeadline(entity.getDeadline());
+        subTask.setSubTaskDuration(entity.getDuration() != null ? entity.getDuration() : 0);
+        if (entity.getPriority() != null) {
+            subTask.setSubTaskPriority(Priority.fromDisplayName(entity.getPriority()));
+        }
+        subTask.setSubTaskNote(entity.getNote());
+        subTask.recalculateDuration();
+        return subTask;
     }
 }
