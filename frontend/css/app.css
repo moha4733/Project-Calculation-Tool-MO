@@ -297,6 +297,19 @@ h2 {
     background: var(--surface-soft);
     border: 1px solid var(--border);
     border-radius: 8px;
+    color: var(--text);
+    text-align: left;
+}
+
+button.metric-card {
+    height: auto;
+    cursor: pointer;
+}
+
+button.metric-card:hover,
+button.metric-card:focus-visible {
+    background: var(--primary-soft);
+    border-color: var(--primary);
 }
 
 .metric-card span {

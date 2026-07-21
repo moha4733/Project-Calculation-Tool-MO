@@ -75,6 +75,9 @@ const state = {
     selectedSubProject: null,
     selectedTask: null,
     activeView: "dashboard",
+    taskFilter: "all",
+    taskMode: "context",
+    memberMode: "project",
     pendingSubmit: null,
     isBusy: false
 };
@@ -94,6 +97,13 @@ createSubTaskButton.addEventListener("click", () => openSubTaskDialog());
 navLinks.forEach((link) => {
     link.addEventListener("click", (event) => {
         event.preventDefault();
+        if (link.dataset.view === "tasks") {
+            state.taskFilter = "all";
+            state.taskMode = "context";
+        }
+        if (link.dataset.view === "members") {
+            state.memberMode = "project";
+        }
         setActiveView(link.dataset.view);
     });
 });
@@ -241,6 +251,8 @@ async function selectProject(project) {
 async function selectSubProject(subProject) {
     await runWithLoading(tasksList, "Loading tasks", async () => {
         state.selectedSubProject = subProject;
+        state.taskFilter = "all";
+        state.taskMode = "context";
         clearSelections("task");
         state.tasks = await apiRequest(tasksPath());
         renderSubProjects();
@@ -361,16 +373,21 @@ function renderDashboard() {
 
     const metrics = dashboardMetrics();
     [
-        { label: "Active Projects", value: metrics.activeProjects },
-        { label: "Tasks", value: metrics.totalTasks },
-        { label: "Developers", value: metrics.developers }
-    ].forEach((metric) => dashboardStats.appendChild(metricCard(metric.label, metric.value)));
+        { label: "Active Projects", value: metrics.activeProjects, view: "projects" },
+        { label: "Tasks", value: metrics.totalTasks, view: "tasks", filter: "all" },
+        { label: "Developers", value: metrics.developers, view: "members" }
+    ].forEach((metric) => dashboardStats.appendChild(metricCard(metric.label, metric.value, {
+        onClick: () => openDashboardMetric(metric.view, metric.filter)
+    })));
 
     [
-        { label: "Active", value: metrics.activeTasks },
-        { label: "Completed", value: metrics.completedTasks },
-        { label: "Late Tasks", value: metrics.lateTasks }
-    ].forEach((metric) => dashboardBreakdown.appendChild(metricCard(metric.label, metric.value, "compact")));
+        { label: "Active", value: metrics.activeTasks, filter: "active" },
+        { label: "Completed", value: metrics.completedTasks, filter: "completed" },
+        { label: "Late Tasks", value: metrics.lateTasks, filter: "late" }
+    ].forEach((metric) => dashboardBreakdown.appendChild(metricCard(metric.label, metric.value, {
+        variant: "compact",
+        onClick: () => openDashboardMetric("tasks", metric.filter)
+    })));
 
     if (state.projects.length === 0) {
         dashboardActivity.appendChild(emptyItem(isProjectManager()
@@ -393,6 +410,17 @@ function renderDashboard() {
             }
         }));
     });
+}
+
+function openDashboardMetric(view, filter = "all") {
+    if (view === "tasks") {
+        state.taskFilter = filter;
+        state.taskMode = "dashboard";
+    }
+    if (view === "members") {
+        state.memberMode = "developers";
+    }
+    setActiveView(view);
 }
 
 function renderProjects() {
@@ -424,14 +452,25 @@ function renderProjects() {
 
 function renderMembers() {
     membersList.innerHTML = "";
-    selectedMembersTitle.textContent = state.selectedProject ? "Members" : "Members";
+    const showDashboardDevelopers = state.memberMode === "developers";
+    selectedMembersTitle.textContent = showDashboardDevelopers ? "Developers" : "Members";
 
     if (!state.currentEmployee) {
         membersList.appendChild(emptyItem("Log in to see project members"));
         return;
     }
-    if (!state.selectedProject) {
-        membersList.appendChild(emptyItem("Select a project to see the delivery team"));
+    if (showDashboardDevelopers || !state.selectedProject) {
+        const developers = state.dashboard.members.filter((member) => member.role === "TEAM_MEMBER");
+        if (developers.length === 0) {
+            membersList.appendChild(emptyItem("No developers found across your projects"));
+            return;
+        }
+        developers.forEach((member) => {
+            membersList.appendChild(createListItem({
+                title: member.username,
+                meta: [member.email || "No email", roleLabel(member.role)]
+            }));
+        });
         return;
     }
     if (state.projectMembers.length === 0) {
@@ -485,32 +524,37 @@ function renderSubProjects() {
 
 function renderTasks() {
     tasksList.innerHTML = "";
-    selectedTaskTitle.textContent = state.selectedTask?.taskName || "Subtasks";
+    const isDashboardTaskView = state.taskMode === "dashboard" || !state.selectedSubProject;
+    selectedTaskTitle.textContent = !isDashboardTaskView
+        ? state.selectedTask?.taskName || "Subtasks"
+        : taskFilterTitle();
 
     if (!state.currentEmployee) {
         tasksList.appendChild(emptyItem("Log in to see tasks"));
         return;
     }
-    if (!state.selectedSubProject) {
-        tasksList.appendChild(emptyItem("Select a subproject to see tasks"));
+    const tasks = filteredTasks();
+    if (isDashboardTaskView && state.dashboard.tasks.length === 0) {
+        tasksList.appendChild(emptyItem("No tasks found across your projects"));
         return;
     }
-    if (state.tasks.length === 0) {
+    if (tasks.length === 0) {
         tasksList.appendChild(emptyItem(isProjectManager()
-            ? "No tasks yet. Create tasks and assign them to project members."
-            : "No tasks assigned to you in this subproject."));
+            ? "No tasks match this dashboard filter."
+            : "No tasks assigned to you match this filter."));
         return;
     }
 
-    state.tasks.forEach((task) => {
+    tasks.forEach((task) => {
+        const isProjectScoped = !isDashboardTaskView;
         tasksList.appendChild(createListItem({
             isActive: state.selectedTask?.taskId === task.taskId,
             title: task.taskName,
             meta: [task.taskDescription || "No description", formatTaskMeta(task), noteMeta(task.taskNote)],
-            onSelect: () => selectTask(task),
-            onEdit: isProjectManager() ? () => openTaskDialog(task) : null,
-            onDelete: isProjectManager() ? () => deleteTask(task) : null,
-            extraActions: canUpdateTaskProgress(task)
+            onSelect: isProjectScoped ? () => selectTask(task) : null,
+            onEdit: isProjectManager() && isProjectScoped ? () => openTaskDialog(task) : null,
+            onDelete: isProjectManager() && isProjectScoped ? () => deleteTask(task) : null,
+            extraActions: isProjectScoped && canUpdateTaskProgress(task)
                 ? [
                     { label: "Status", onClick: () => openTaskStatusDialog(task) },
                     { label: "Note", onClick: () => openTaskNoteDialog(task) }
@@ -1023,6 +1067,9 @@ function clearSelections(level) {
 function resetState() {
     state.currentEmployee = null;
     state.projectMembers = [];
+    state.taskFilter = "all";
+    state.taskMode = "context";
+    state.memberMode = "project";
     state.dashboard = {
         isLoading: false,
         members: [],
@@ -1114,28 +1161,56 @@ function dateBounds(min, max) {
 
 function dashboardMetrics() {
     const tasks = state.dashboard.tasks;
-    const subTasks = state.dashboard.subTasks;
-    const workItems = [...tasks, ...subTasks];
-    const completedTasks = workItems.filter((item) => itemStatus(item) === "COMPLETED").length;
+    const completedTasks = tasks.filter((item) => itemStatus(item) === "COMPLETED").length;
 
     return {
         activeProjects: state.projects.length,
         totalTasks: tasks.length,
         developers: state.dashboard.members.filter((member) => member.role === "TEAM_MEMBER").length,
-        activeTasks: workItems.filter((item) => itemStatus(item) !== "COMPLETED").length,
+        activeTasks: tasks.filter((item) => itemStatus(item) !== "COMPLETED").length,
         completedTasks,
-        lateTasks: workItems.filter(isLateWorkItem).length
+        lateTasks: tasks.filter(isLateWorkItem).length
     };
 }
 
-function metricCard(label, value, variant = "") {
-    const card = document.createElement("article");
+function metricCard(label, value, { variant = "", onClick = null } = {}) {
+    const card = document.createElement(onClick ? "button" : "article");
     card.className = `metric-card ${variant}`.trim();
+    if (onClick) {
+        card.type = "button";
+        card.addEventListener("click", onClick);
+        card.setAttribute("aria-label", `Open ${label}`);
+    }
     card.innerHTML = `
         <span>${escapeHtml(label)}</span>
         <strong>${escapeHtml(value)}</strong>
     `;
     return card;
+}
+
+function filteredTasks() {
+    const tasks = state.taskMode === "dashboard" || !state.selectedSubProject
+        ? state.dashboard.tasks
+        : state.tasks;
+    if (state.taskFilter === "active") {
+        return tasks.filter((task) => itemStatus(task) !== "COMPLETED");
+    }
+    if (state.taskFilter === "completed") {
+        return tasks.filter((task) => itemStatus(task) === "COMPLETED");
+    }
+    if (state.taskFilter === "late") {
+        return tasks.filter(isLateWorkItem);
+    }
+    return tasks;
+}
+
+function taskFilterTitle() {
+    return {
+        all: "Tasks",
+        active: "Active Tasks",
+        completed: "Completed Tasks",
+        late: "Late Tasks"
+    }[state.taskFilter] || "Tasks";
 }
 
 function itemStatus(item) {
