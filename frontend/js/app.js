@@ -30,7 +30,10 @@ const registerMessage = document.querySelector("#registerMessage");
 const workspaceMessage = document.querySelector("#workspaceMessage");
 const loginPanel = document.querySelector("#loginPanel");
 const workspace = document.querySelector("#workspace");
+const workspaceTitle = document.querySelector("#workspaceTitle");
 const userKicker = document.querySelector("#userKicker");
+const navLinks = document.querySelectorAll(".nav-link");
+const viewPanels = document.querySelectorAll("[data-view-panel]");
 const projectsList = document.querySelector("#projectsList");
 const membersList = document.querySelector("#membersList");
 const subProjectsList = document.querySelector("#subProjectsList");
@@ -59,6 +62,7 @@ const state = {
     selectedProject: null,
     selectedSubProject: null,
     selectedTask: null,
+    activeView: "projects",
     pendingSubmit: null,
     isBusy: false
 };
@@ -74,11 +78,18 @@ addMemberButton.addEventListener("click", () => openAddMemberDialog());
 createSubProjectButton.addEventListener("click", () => openSubProjectDialog());
 createTaskButton.addEventListener("click", () => openTaskDialog());
 createSubTaskButton.addEventListener("click", () => openSubTaskDialog());
+navLinks.forEach((link) => {
+    link.addEventListener("click", (event) => {
+        event.preventDefault();
+        setActiveView(link.dataset.view);
+    });
+});
 closeDialogButton.addEventListener("click", () => crudDialog.close());
 cancelDialogButton.addEventListener("click", () => crudDialog.close());
 crudForm.addEventListener("submit", submitDialog);
 
 renderAllLists();
+setActiveView(initialViewFromHash(), false);
 
 if (getStoredToken()) {
     bootWorkspace();
@@ -240,6 +251,26 @@ function renderAllLists() {
     renderSubProjects();
     renderTasks();
     renderSubTasks();
+    renderActiveView();
+}
+
+function setActiveView(view, updateHash = true) {
+    state.activeView = isValidView(view) ? view : "projects";
+    if (updateHash) {
+        history.replaceState(null, "", `#${state.activeView}`);
+    }
+    renderActiveView();
+}
+
+function renderActiveView() {
+    viewPanels.forEach((panel) => {
+        panel.hidden = panel.dataset.viewPanel !== state.activeView;
+        panel.classList.toggle("is-active-view", panel.dataset.viewPanel === state.activeView);
+    });
+    navLinks.forEach((link) => {
+        link.classList.toggle("active", link.dataset.view === state.activeView);
+    });
+    workspaceTitle.textContent = viewTitle(state.activeView);
 }
 
 function renderProjects() {
@@ -866,6 +897,24 @@ function resetState() {
     state.currentEmployee = null;
     state.projectMembers = [];
     clearSelections("project");
+}
+
+function initialViewFromHash() {
+    return window.location.hash.replace("#", "");
+}
+
+function isValidView(view) {
+    return ["projects", "members", "subprojects", "tasks", "subtasks"].includes(view);
+}
+
+function viewTitle(view) {
+    return {
+        projects: "Projects",
+        members: "Members",
+        subprojects: "Subprojects",
+        tasks: "Tasks",
+        subtasks: "Subtasks"
+    }[view] || "Projects";
 }
 
 function updateCreateButtons() {

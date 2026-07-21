@@ -96,11 +96,11 @@
                 </div>
             </div>
             <nav class="nav-list" aria-label="Workspace navigation">
-                <a href="#projects" class="nav-link active">Projects</a>
-                <a href="#members" class="nav-link">Members</a>
-                <a href="#subprojects" class="nav-link">Subprojects</a>
-                <a href="#tasks" class="nav-link">Tasks</a>
-                <a href="#subtasks" class="nav-link">Subtasks</a>
+                <a href="#projects" class="nav-link active" data-view="projects">Projects</a>
+                <a href="#members" class="nav-link" data-view="members">Members</a>
+                <a href="#subprojects" class="nav-link" data-view="subprojects">Subprojects</a>
+                <a href="#tasks" class="nav-link" data-view="tasks">Tasks</a>
+                <a href="#subtasks" class="nav-link" data-view="subtasks">Subtasks</a>
             </nav>
         </aside>
 
@@ -108,13 +108,13 @@
             <header class="topbar">
                 <div>
                     <p id="userKicker" class="eyebrow">Workspace</p>
-                    <h1>Operations Dashboard</h1>
+                    <h1 id="workspaceTitle">Projects</h1>
                 </div>
                 <button id="logoutButton" class="secondary" type="button">Logout</button>
             </header>
 
             <div class="workspace-grid">
-                <aside id="projects" class="panel list-panel">
+                <aside id="projects" class="panel list-panel" data-view-panel="projects">
                     <div class="panel-header">
                         <div>
                             <p class="section-kicker">Portfolio</p>
@@ -128,7 +128,7 @@
                     <div id="projectsList" class="list"></div>
                 </aside>
 
-                <section id="members" class="panel members-panel">
+                <section id="members" class="panel members-panel" data-view-panel="members">
                     <div class="panel-header">
                         <div>
                             <p class="section-kicker">Team</p>
@@ -139,7 +139,7 @@
                     <div id="membersList" class="list"></div>
                 </section>
 
-                <section id="subprojects" class="panel detail-panel">
+                <section id="subprojects" class="panel detail-panel" data-view-panel="subprojects">
                     <div class="panel-header">
                         <div>
                             <p class="section-kicker">Breakdown</p>
@@ -150,7 +150,7 @@
                     <div id="subProjectsList" class="list"></div>
                 </section>
 
-                <section id="tasks" class="panel detail-panel">
+                <section id="tasks" class="panel detail-panel" data-view-panel="tasks">
                     <div class="panel-header">
                         <div>
                             <p class="section-kicker">Execution</p>
@@ -161,7 +161,7 @@
                     <div id="tasksList" class="list"></div>
                 </section>
 
-                <section id="subtasks" class="panel detail-panel">
+                <section id="subtasks" class="panel detail-panel" data-view-panel="subtasks">
                     <div class="panel-header">
                         <div>
                             <p class="section-kicker">Details</p>

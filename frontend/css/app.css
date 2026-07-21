@@ -246,33 +246,15 @@ h2 {
 
 .workspace-grid {
     display: grid;
-    grid-template-columns: minmax(260px, 320px) minmax(260px, 0.85fr) minmax(320px, 1.2fr);
-    grid-template-areas:
-        "projects members subprojects"
-        "projects tasks tasks"
-        "projects subtasks subtasks";
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "active";
     gap: 16px;
     align-items: start;
 }
 
-#projects {
-    grid-area: projects;
-}
-
-#members {
-    grid-area: members;
-}
-
-#subprojects {
-    grid-area: subprojects;
-}
-
-#tasks {
-    grid-area: tasks;
-}
-
-#subtasks {
-    grid-area: subtasks;
+.panel.is-active-view {
+    grid-area: active;
+    min-height: calc(100vh - 146px);
 }
 
 .panel {
@@ -284,7 +266,7 @@ h2 {
 }
 
 .list-panel {
-    min-height: calc(100vh - 48px);
+    min-height: calc(100vh - 146px);
 }
 
 .panel-header {
@@ -576,16 +558,9 @@ button.secondary {
         grid-template-columns: repeat(5, minmax(0, 1fr));
     }
 
-    .workspace-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        grid-template-areas:
-            "projects members"
-            "subprojects tasks"
-            "subtasks subtasks";
-    }
-
+    .panel.is-active-view,
     .list-panel {
-        min-height: 0;
+        min-height: calc(100vh - 214px);
     }
 }
 
@@ -617,15 +592,6 @@ button.secondary {
 
     .topbar {
         display: grid;
-    }
-
-    .workspace-grid {
-        grid-template-areas:
-            "projects"
-            "members"
-            "subprojects"
-            "tasks"
-            "subtasks";
     }
 
     .nav-list {
