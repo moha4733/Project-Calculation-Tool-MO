@@ -1,16 +1,23 @@
 import {
     apiRequest,
     clearStoredToken,
-    getApiBaseUrl,
     getStoredToken,
-    setApiBaseUrl,
     setStoredToken
 } from "./apiClient.js";
 
-const apiBaseUrlInput = document.querySelector("#apiBaseUrl");
+const showLoginButton = document.querySelector("#showLoginButton");
+const showRegisterButton = document.querySelector("#showRegisterButton");
+const loginForm = document.querySelector("#loginForm");
+const registerForm = document.querySelector("#registerForm");
 const usernameInput = document.querySelector("#username");
 const passwordInput = document.querySelector("#password");
+const registerUsernameInput = document.querySelector("#registerUsername");
+const registerEmailInput = document.querySelector("#registerEmail");
+const registerPasswordInput = document.querySelector("#registerPassword");
+const registerRoleInput = document.querySelector("#registerRole");
+const registerAlphaRoleInput = document.querySelector("#registerAlphaRole");
 const loginButton = document.querySelector("#loginButton");
+const registerButton = document.querySelector("#registerButton");
 const logoutButton = document.querySelector("#logoutButton");
 const refreshProjectsButton = document.querySelector("#refreshProjectsButton");
 const createProjectButton = document.querySelector("#createProjectButton");
@@ -19,9 +26,11 @@ const createSubProjectButton = document.querySelector("#createSubProjectButton")
 const createTaskButton = document.querySelector("#createTaskButton");
 const createSubTaskButton = document.querySelector("#createSubTaskButton");
 const loginMessage = document.querySelector("#loginMessage");
+const registerMessage = document.querySelector("#registerMessage");
 const workspaceMessage = document.querySelector("#workspaceMessage");
 const loginPanel = document.querySelector("#loginPanel");
 const workspace = document.querySelector("#workspace");
+const userKicker = document.querySelector("#userKicker");
 const projectsList = document.querySelector("#projectsList");
 const membersList = document.querySelector("#membersList");
 const subProjectsList = document.querySelector("#subProjectsList");
@@ -54,9 +63,10 @@ const state = {
     isBusy: false
 };
 
-apiBaseUrlInput.value = getApiBaseUrl();
-
-loginButton.addEventListener("click", login);
+showLoginButton.addEventListener("click", () => setAuthMode("login"));
+showRegisterButton.addEventListener("click", () => setAuthMode("register"));
+loginForm.addEventListener("submit", login);
+registerForm.addEventListener("submit", register);
 logoutButton.addEventListener("click", logout);
 refreshProjectsButton.addEventListener("click", loadProjects);
 createProjectButton.addEventListener("click", () => openProjectDialog());
@@ -68,12 +78,24 @@ closeDialogButton.addEventListener("click", () => crudDialog.close());
 cancelDialogButton.addEventListener("click", () => crudDialog.close());
 crudForm.addEventListener("submit", submitDialog);
 
+renderAllLists();
+
 if (getStoredToken()) {
     bootWorkspace();
 }
 
-async function login() {
-    setApiBaseUrl(apiBaseUrlInput.value);
+function setAuthMode(mode) {
+    const isLogin = mode === "login";
+    loginForm.hidden = !isLogin;
+    registerForm.hidden = isLogin;
+    showLoginButton.classList.toggle("active", isLogin);
+    showRegisterButton.classList.toggle("active", !isLogin);
+    loginMessage.textContent = "";
+    registerMessage.textContent = "";
+}
+
+async function login(event) {
+    event.preventDefault();
     loginMessage.textContent = "";
     setBusy(true);
 
@@ -94,14 +116,40 @@ async function login() {
     }
 }
 
+async function register(event) {
+    event.preventDefault();
+    registerMessage.textContent = "";
+    setBusy(true);
+
+    try {
+        const result = await apiRequest("/api/auth/register", {
+            method: "POST",
+            body: JSON.stringify({
+                username: registerUsernameInput.value,
+                password: registerPasswordInput.value,
+                email: registerEmailInput.value,
+                role: registerRoleInput.value,
+                alphaRole: registerAlphaRoleInput.value
+            })
+        });
+        setStoredToken(result.token);
+        await bootWorkspace();
+    } catch (error) {
+        registerMessage.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+}
+
 async function bootWorkspace() {
     showWorkspace();
     try {
         await loadCurrentEmployee();
+        userKicker.textContent = `${state.currentEmployee.username} - ${roleLabel(state.currentEmployee.role)}`;
         updateCreateButtons();
         await loadProjects();
     } catch (error) {
-        showWorkspaceMessage(error.message);
+        returnToLogin(error.message);
     }
 }
 
@@ -110,6 +158,7 @@ function logout() {
     loginPanel.hidden = false;
     workspace.hidden = true;
     logoutButton.hidden = true;
+    userKicker.textContent = "Workspace";
     workspaceMessage.textContent = "";
     resetState();
     renderAllLists();
@@ -119,6 +168,18 @@ function showWorkspace() {
     loginPanel.hidden = true;
     workspace.hidden = false;
     logoutButton.hidden = false;
+}
+
+function returnToLogin(message) {
+    clearStoredToken();
+    loginPanel.hidden = false;
+    workspace.hidden = true;
+    logoutButton.hidden = true;
+    userKicker.textContent = "Workspace";
+    resetState();
+    renderAllLists();
+    setAuthMode("login");
+    loginMessage.textContent = message;
 }
 
 async function loadCurrentEmployee() {
@@ -185,8 +246,14 @@ function renderProjects() {
     projectsList.innerHTML = "";
     selectedProjectTitle.textContent = state.selectedProject?.projectName || "Subprojects";
 
+    if (!state.currentEmployee) {
+        projectsList.appendChild(emptyItem("Log in to see projects"));
+        return;
+    }
     if (state.projects.length === 0) {
-        projectsList.appendChild(emptyItem("No projects yet"));
+        projectsList.appendChild(emptyItem(isProjectManager()
+            ? "No projects yet. Create the first project to start planning work."
+            : "No projects assigned yet. Ask a project manager to add you as a member."));
         return;
     }
 
@@ -206,12 +273,16 @@ function renderMembers() {
     membersList.innerHTML = "";
     selectedMembersTitle.textContent = state.selectedProject ? "Members" : "Members";
 
+    if (!state.currentEmployee) {
+        membersList.appendChild(emptyItem("Log in to see project members"));
+        return;
+    }
     if (!state.selectedProject) {
-        membersList.appendChild(emptyItem("Select a project"));
+        membersList.appendChild(emptyItem("Select a project to see the delivery team"));
         return;
     }
     if (state.projectMembers.length === 0) {
-        membersList.appendChild(emptyItem("No members yet"));
+        membersList.appendChild(emptyItem("No members have been added to this project yet"));
         return;
     }
 
@@ -232,12 +303,18 @@ function renderSubProjects() {
     subProjectsList.innerHTML = "";
     selectedSubProjectTitle.textContent = state.selectedSubProject?.subProjectName || "Tasks";
 
+    if (!state.currentEmployee) {
+        subProjectsList.appendChild(emptyItem("Log in to see subprojects"));
+        return;
+    }
     if (!state.selectedProject) {
-        subProjectsList.appendChild(emptyItem("Select a project"));
+        subProjectsList.appendChild(emptyItem("Select a project to see its subprojects"));
         return;
     }
     if (state.subProjects.length === 0) {
-        subProjectsList.appendChild(emptyItem("No subprojects yet"));
+        subProjectsList.appendChild(emptyItem(isProjectManager()
+            ? "No subprojects yet. Break the project into smaller delivery phases."
+            : "No subprojects are available for this project yet."));
         return;
     }
 
@@ -257,12 +334,18 @@ function renderTasks() {
     tasksList.innerHTML = "";
     selectedTaskTitle.textContent = state.selectedTask?.taskName || "Subtasks";
 
+    if (!state.currentEmployee) {
+        tasksList.appendChild(emptyItem("Log in to see tasks"));
+        return;
+    }
     if (!state.selectedSubProject) {
-        tasksList.appendChild(emptyItem("Select a subproject"));
+        tasksList.appendChild(emptyItem("Select a subproject to see tasks"));
         return;
     }
     if (state.tasks.length === 0) {
-        tasksList.appendChild(emptyItem("No tasks yet"));
+        tasksList.appendChild(emptyItem(isProjectManager()
+            ? "No tasks yet. Create tasks and assign them to project members."
+            : "No tasks assigned to you in this subproject."));
         return;
     }
 
@@ -287,12 +370,18 @@ function renderTasks() {
 function renderSubTasks() {
     subTasksList.innerHTML = "";
 
+    if (!state.currentEmployee) {
+        subTasksList.appendChild(emptyItem("Log in to see subtasks"));
+        return;
+    }
     if (!state.selectedTask) {
-        subTasksList.appendChild(emptyItem("Select a task"));
+        subTasksList.appendChild(emptyItem("Select a task to see subtasks"));
         return;
     }
     if (state.subTasks.length === 0) {
-        subTasksList.appendChild(emptyItem("No subtasks yet"));
+        subTasksList.appendChild(emptyItem(isProjectManager()
+            ? "No subtasks yet. Add subtasks when the task needs a detailed breakdown."
+            : "No subtasks have been created for this task."));
         return;
     }
 
@@ -915,6 +1004,8 @@ function setBusy(isBusy) {
             button.disabled = isBusy;
         }
     });
+    loginButton.disabled = isBusy;
+    registerButton.disabled = isBusy;
 }
 
 function setDialogBusy(isBusy) {

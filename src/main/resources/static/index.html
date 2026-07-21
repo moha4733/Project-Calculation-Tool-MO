@@ -8,78 +8,174 @@
 </head>
 <body>
 <main class="app-shell">
-    <section class="topbar">
-        <div>
-            <h1>Calculation Tool</h1>
-            <p>API-first frontend preview</p>
+    <section id="loginPanel" class="auth-layout">
+        <div class="auth-hero" aria-label="Alpha Solution">
+            <div class="brand-mark">AS</div>
+            <p class="eyebrow">Alpha Solution</p>
+            <h1>Project Calculation Tool</h1>
+            <p class="hero-copy">Plan projects, assign work and keep delivery progress visible across every team member.</p>
         </div>
-        <button id="logoutButton" class="secondary" type="button" hidden>Logout</button>
+
+        <section class="auth-card" aria-label="Authentication">
+            <div class="auth-tabs" role="tablist" aria-label="Authentication mode">
+                <button id="showLoginButton" class="tab-button active" type="button">Login</button>
+                <button id="showRegisterButton" class="tab-button" type="button">Register</button>
+            </div>
+
+            <form id="loginForm" class="auth-form">
+                <div>
+                    <h2>Welcome back</h2>
+                    <p>Sign in to manage projects, members and tasks.</p>
+                </div>
+                <label>
+                    Username
+                    <input id="username" type="text" autocomplete="username" required>
+                </label>
+                <label>
+                    Password
+                    <input id="password" type="password" autocomplete="current-password" required>
+                </label>
+                <button id="loginButton" type="submit">Login</button>
+                <p id="loginMessage" class="message" role="status"></p>
+            </form>
+
+            <form id="registerForm" class="auth-form" hidden>
+                <div>
+                    <h2>Create account</h2>
+                    <p>Create a project manager or team member profile for local testing.</p>
+                </div>
+                <label>
+                    Username
+                    <input id="registerUsername" type="text" autocomplete="username" required>
+                </label>
+                <label>
+                    Email
+                    <input id="registerEmail" type="email" autocomplete="email" required>
+                </label>
+                <label>
+                    Password
+                    <input id="registerPassword" type="password" autocomplete="new-password" required>
+                </label>
+                <div class="form-row">
+                    <label>
+                        System role
+                        <select id="registerRole" required>
+                            <option value="PROJECT_MANAGER">Project Manager</option>
+                            <option value="TEAM_MEMBER">Team Member</option>
+                        </select>
+                    </label>
+                    <label>
+                        Alpha role
+                        <select id="registerAlphaRole" required>
+                            <option value="ProjectManager">Project Manager</option>
+                            <option value="Developer">Developer</option>
+                            <option value="FrontendDeveloper">Frontend Developer</option>
+                            <option value="BackendDeveloper">Backend Developer</option>
+                            <option value="FullstackDeveloper">Fullstack Developer</option>
+                            <option value="Tester">Tester</option>
+                            <option value="UXDesigner">UX Designer</option>
+                            <option value="UIDesigner">UI Designer</option>
+                            <option value="SolutionArchitect">Solution Architect</option>
+                            <option value="DevOpsEngineer">DevOps Engineer</option>
+                        </select>
+                    </label>
+                </div>
+                <button id="registerButton" type="submit">Create account</button>
+                <p id="registerMessage" class="message" role="status"></p>
+            </form>
+        </section>
     </section>
 
-    <section id="loginPanel" class="panel">
-        <h2>Login</h2>
-        <label>
-            API base URL
-            <input id="apiBaseUrl" type="url" value="http://localhost:8080">
-        </label>
-        <label>
-            Username
-            <input id="username" type="text" autocomplete="username">
-        </label>
-        <label>
-            Password
-            <input id="password" type="password" autocomplete="current-password">
-        </label>
-        <button id="loginButton" type="button">Login</button>
-        <p id="loginMessage" class="message" role="status"></p>
-    </section>
-
-    <section id="workspace" class="workspace" hidden>
-        <aside class="panel list-panel">
-            <div class="panel-header">
-                <h2>Projects</h2>
-                <div class="toolbar">
-                    <button id="createProjectButton" class="icon-button" type="button" title="Create project" hidden>+</button>
-                    <button id="refreshProjectsButton" class="icon-button secondary" type="button" title="Refresh projects">↻</button>
+    <section id="workspace" class="workspace-shell" hidden>
+        <aside class="sidebar">
+            <div class="brand-row">
+                <div class="brand-mark small">AS</div>
+                <div>
+                    <strong>Alpha Solution</strong>
+                    <span>Calculation Tool</span>
                 </div>
             </div>
-            <div id="projectsList" class="list"></div>
+            <nav class="nav-list" aria-label="Workspace navigation">
+                <a href="#projects" class="nav-link active">Projects</a>
+                <a href="#members" class="nav-link">Members</a>
+                <a href="#subprojects" class="nav-link">Subprojects</a>
+                <a href="#tasks" class="nav-link">Tasks</a>
+                <a href="#subtasks" class="nav-link">Subtasks</a>
+            </nav>
         </aside>
 
-        <section class="panel members-panel">
-            <div class="panel-header">
-                <h2 id="selectedMembersTitle">Members</h2>
-                <button id="addMemberButton" class="icon-button" type="button" title="Add member" hidden>+</button>
-            </div>
-            <div id="membersList" class="list"></div>
-        </section>
+        <section class="workspace-main">
+            <header class="topbar">
+                <div>
+                    <p id="userKicker" class="eyebrow">Workspace</p>
+                    <h1>Operations Dashboard</h1>
+                </div>
+                <button id="logoutButton" class="secondary" type="button">Logout</button>
+            </header>
 
-        <section class="panel detail-panel">
-            <div class="panel-header">
-                <h2 id="selectedProjectTitle">Subprojects</h2>
-                <button id="createSubProjectButton" class="icon-button" type="button" title="Create subproject" hidden>+</button>
-            </div>
-            <div id="subProjectsList" class="list"></div>
-        </section>
+            <div class="workspace-grid">
+                <aside id="projects" class="panel list-panel">
+                    <div class="panel-header">
+                        <div>
+                            <p class="section-kicker">Portfolio</p>
+                            <h2>Projects</h2>
+                        </div>
+                        <div class="toolbar">
+                            <button id="createProjectButton" class="icon-button" type="button" title="Create project" hidden>+</button>
+                            <button id="refreshProjectsButton" class="icon-button secondary" type="button" title="Refresh projects">↻</button>
+                        </div>
+                    </div>
+                    <div id="projectsList" class="list"></div>
+                </aside>
 
-        <section class="panel detail-panel">
-            <div class="panel-header">
-                <h2 id="selectedSubProjectTitle">Tasks</h2>
-                <button id="createTaskButton" class="icon-button" type="button" title="Create task" hidden>+</button>
-            </div>
-            <div id="tasksList" class="list"></div>
-        </section>
+                <section id="members" class="panel members-panel">
+                    <div class="panel-header">
+                        <div>
+                            <p class="section-kicker">Team</p>
+                            <h2 id="selectedMembersTitle">Members</h2>
+                        </div>
+                        <button id="addMemberButton" class="icon-button" type="button" title="Add member" hidden>+</button>
+                    </div>
+                    <div id="membersList" class="list"></div>
+                </section>
 
-        <section class="panel detail-panel">
-            <div class="panel-header">
-                <h2 id="selectedTaskTitle">Subtasks</h2>
-                <button id="createSubTaskButton" class="icon-button" type="button" title="Create subtask" hidden>+</button>
+                <section id="subprojects" class="panel detail-panel">
+                    <div class="panel-header">
+                        <div>
+                            <p class="section-kicker">Breakdown</p>
+                            <h2 id="selectedProjectTitle">Subprojects</h2>
+                        </div>
+                        <button id="createSubProjectButton" class="icon-button" type="button" title="Create subproject" hidden>+</button>
+                    </div>
+                    <div id="subProjectsList" class="list"></div>
+                </section>
+
+                <section id="tasks" class="panel detail-panel">
+                    <div class="panel-header">
+                        <div>
+                            <p class="section-kicker">Execution</p>
+                            <h2 id="selectedSubProjectTitle">Tasks</h2>
+                        </div>
+                        <button id="createTaskButton" class="icon-button" type="button" title="Create task" hidden>+</button>
+                    </div>
+                    <div id="tasksList" class="list"></div>
+                </section>
+
+                <section id="subtasks" class="panel detail-panel">
+                    <div class="panel-header">
+                        <div>
+                            <p class="section-kicker">Details</p>
+                            <h2 id="selectedTaskTitle">Subtasks</h2>
+                        </div>
+                        <button id="createSubTaskButton" class="icon-button" type="button" title="Create subtask" hidden>+</button>
+                    </div>
+                    <div id="subTasksList" class="list"></div>
+                </section>
             </div>
-            <div id="subTasksList" class="list"></div>
+
+            <p id="workspaceMessage" class="toast-message" role="status"></p>
         </section>
     </section>
-
-    <p id="workspaceMessage" class="message" role="status"></p>
 </main>
 
 <dialog id="crudDialog">
