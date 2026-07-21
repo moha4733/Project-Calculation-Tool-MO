@@ -1,0 +1,14 @@
+.git
+.idea
+.vscode
+target
+build
+dist
+*.iml
+*.iws
+*.ipr
+.DS_Store
+*.log
+node_modules
+coverage
+frontend/node_modules

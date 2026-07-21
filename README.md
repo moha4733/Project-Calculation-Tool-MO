@@ -1,92 +1,115 @@
-# 📂 Project Management System  
-Et webbaseret projektstyringssystem udviklet i Java, Spring Boot & Thymeleaf.
+# Project Calculation Tool
 
-## 🚀 Formål  
-Systemet gør det muligt for projektledere og teammedlemmer at samarbejde om projekter, delprojekter og opgaver (tasks).  
-Brugere kan logge ind som enten **Project Manager** eller **Team Member**, og deres rettigheder varierer derefter.
+Et API-first projektstyrings- og kalkulationsværktøj til Alpha Solution.
 
----
+Systemet er migreret væk fra legacy Thymeleaf/MVC flows og bruger nu Spring Boot REST API, JPA, JWT-auth og en vanilla HTML/CSS/JS frontend, som serveres fra `/`.
 
-## 🧑‍💻 Roller i systemet
+## Funktioner
 
-### 👨‍💼 Project Manager
-- Kan se alle projekter og opgaver  
-- Kan oprette projekter, subprojekter og tasks  
-- Kan ikke ændre task-status (kun læse)  
-- Har overblik over fremdrift på projekter  
+- Login og registrering via REST API.
+- JWT-baseret adgang til beskyttede API endpoints.
+- Projektledere kan oprette og administrere projekter, subprojekter, tasks, subtasks og projektmedlemmer.
+- Team members kan se projekter de er medlem af.
+- Team members kan opdatere status og noter på egne tasks/subtasks.
+- Project member dropdowns viser kun relevante medarbejdere.
+- Vanilla frontend ligger separat i `frontend/` og deployes fra `src/main/resources/static`.
 
-### 👷 Team Member
-- Kan se de projekter, de er tildelt  
-- Kan **ændre status på opgaver**, f.eks.:  
-  - Ikke startet → I gang → Afsluttet  
-- Har adgang til egne tasks og noter  
-- Kan kommentere og opdatere fremdrift  
-
----
-
-## 🏗 Systemfunktioner
-
-### ✔ Projektstyring
-- Opret og administrer projekter  
-- Underprojekter (SubProjects)  
-- Opgaver (Tasks)
-
-### ✔ Task-funktioner
-- Titel, beskrivelse, deadline  
-- Status (enum):  
-  - `NOT_STARTED`  
-  - `IN_PROGRESS`  
-  - `COMPLETED`  
-- Mulighed for subtasks  
-- Automatisk opdatering af status
-
-### ✔ Login og roller
-- Rollebaseret adgang (Project Manager / Team Member)  
-- Forskellige handlinger afhængig af login
-
-### ✔ Live opdatering
-Når teammedlem ændrer en task-status, bliver ændringen gemt i databasen og kan straks ses af project manager.
-
----
-
-## 🛠 Tech Stack
+## Tech Stack
 
 | Teknologi | Brug |
-|----------|------|
-| **Java 17+** | Backend |
-| **Spring Boot** | Web, MVC, Security |
-| **Thymeleaf** | HTML views |
-| **Spring Data JPA** | Database lag |
-| **MySQL / H2** | Database |
-| **Lombok** | Reducerer boilerplate kode |
-| **Git + GitHub** | Versionsstyring |
+| --- | --- |
+| Java 17 | Backend runtime |
+| Spring Boot | REST API og static frontend hosting |
+| Spring Security | JWT-baseret API security |
+| Spring Data JPA | Databaseadgang |
+| MySQL | Docker/prod database |
+| H2 | Lokal testprofil |
+| Vanilla HTML/CSS/JS | Frontend |
+| Docker Compose | Lokal app + database |
 
----
+## Lokal Kørsel
 
-## 📦 Installation
+### Med Docker Compose
 
-### 1. Klon projektet eller kør den
-``bash
-git clone https://github.com/KimL92/Project-Calculation-Tool.git
-cd projektmappen
+Kopier eventuelt miljøvariablerne:
 
+```bash
+cp .env.example .env
+```
 
----
+Start app og MySQL:
 
-## Live version
-[Project Calculation Tool](https://project-calculationstool-egg6b5aphbgecyh4.norwayeast-01.azurewebsites.net)
+```bash
+docker compose up --build
+```
 
+Åbn appen:
 
-## 👥 Contributors 
+```text
+http://localhost:8080/
+```
 
-Tak til alle som har bidraget til projektet: 
+MySQL kører som standard på port `3306`, og data gemmes i Docker volume `mysql_data`.
 
-<a href="https://github.com/KimL92/Project-Calculation-Tool/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=KimL92/Project-Calculation-Tool&max=100&nocache=1&timestamp=<?=time()?>&junes=1" />
-</a>
+Stop miljøet:
 
+```bash
+docker compose down
+```
 
-### Individuelle GitHub-profiler 
+Stop og slet lokal database-volume:
+
+```bash
+docker compose down -v
+```
+
+### Uden Docker
+
+Kør tests:
+
+```bash
+./mvnw test
+```
+
+Kør lokalt med H2:
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=h2
+```
+
+Kør lokalt med MySQL:
+
+```bash
+DB_URL="jdbc:mysql://localhost:3306/calculation_tool?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" \
+DB_USERNAME="calculation_user" \
+DB_PASSWORD="calculation_password" \
+./mvnw spring-boot:run -Dspring-boot.run.profiles=mysql
+```
+
+## API
+
+De vigtigste API scopes:
+
+- `/api/auth`
+- `/api/employees`
+- `/api/projects`
+- `/api/projects/{projectId}/members`
+- `/api/projects/{projectId}/subprojects`
+- `/api/projects/{projectId}/subprojects/{subProjectId}/tasks`
+- `/api/projects/{projectId}/subprojects/{subProjectId}/tasks/{taskId}/subtasks`
+
+## Verifikation
+
+Seneste fulde testkørsel:
+
+```text
+Tests run: 75, Failures: 0, Errors: 0, Skipped: 0
+```
+
+Derudover er hovedflowet smoke-testet i browser på `http://localhost:8080/`.
+
+## Contributors
+
 - [@aden0020](https://github.com/Aden0020)
 - [@aljamour](https://github.com/aljamour)
 - [@Junes2003](https://github.com/Junes2003)
