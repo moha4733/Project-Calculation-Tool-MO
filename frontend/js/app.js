@@ -19,6 +19,7 @@ const registerAlphaRoleInput = document.querySelector("#registerAlphaRole");
 const loginButton = document.querySelector("#loginButton");
 const registerButton = document.querySelector("#registerButton");
 const logoutButton = document.querySelector("#logoutButton");
+const refreshDashboardButton = document.querySelector("#refreshDashboardButton");
 const refreshProjectsButton = document.querySelector("#refreshProjectsButton");
 const createProjectButton = document.querySelector("#createProjectButton");
 const addMemberButton = document.querySelector("#addMemberButton");
@@ -34,6 +35,10 @@ const workspaceTitle = document.querySelector("#workspaceTitle");
 const userKicker = document.querySelector("#userKicker");
 const navLinks = document.querySelectorAll(".nav-link");
 const viewPanels = document.querySelectorAll("[data-view-panel]");
+const dashboardWelcome = document.querySelector("#dashboardWelcome");
+const dashboardStats = document.querySelector("#dashboardStats");
+const dashboardBreakdown = document.querySelector("#dashboardBreakdown");
+const dashboardActivity = document.querySelector("#dashboardActivity");
 const projectsList = document.querySelector("#projectsList");
 const membersList = document.querySelector("#membersList");
 const subProjectsList = document.querySelector("#subProjectsList");
@@ -59,10 +64,17 @@ const state = {
     subProjects: [],
     tasks: [],
     subTasks: [],
+    dashboard: {
+        isLoading: false,
+        members: [],
+        subProjects: [],
+        tasks: [],
+        subTasks: []
+    },
     selectedProject: null,
     selectedSubProject: null,
     selectedTask: null,
-    activeView: "projects",
+    activeView: "dashboard",
     pendingSubmit: null,
     isBusy: false
 };
@@ -72,6 +84,7 @@ showRegisterButton.addEventListener("click", () => setAuthMode("register"));
 loginForm.addEventListener("submit", login);
 registerForm.addEventListener("submit", register);
 logoutButton.addEventListener("click", logout);
+refreshDashboardButton.addEventListener("click", refreshDashboard);
 refreshProjectsButton.addEventListener("click", loadProjects);
 createProjectButton.addEventListener("click", () => openProjectDialog());
 addMemberButton.addEventListener("click", () => openAddMemberDialog());
@@ -201,6 +214,7 @@ async function loadProjects() {
     await runWithLoading(projectsList, "Loading projects", async () => {
         clearSelections("project");
         state.projects = await apiRequest("/api/projects");
+        await loadDashboardData();
         renderAllLists();
         updateCreateButtons();
     });
@@ -245,7 +259,62 @@ async function selectTask(task) {
     });
 }
 
+async function refreshDashboard() {
+    await runMutation(async () => {
+        await loadDashboardData();
+        renderDashboard();
+        showWorkspaceMessage("Dashboard refreshed");
+    });
+}
+
+async function loadDashboardData() {
+    if (!state.currentEmployee) {
+        return;
+    }
+
+    state.dashboard.isLoading = true;
+    renderDashboard();
+    const membersById = new Map();
+    const subProjects = [];
+    const tasks = [];
+    const subTasks = [];
+
+    try {
+        await Promise.all(state.projects.map(async (project) => {
+            const [projectMembers, projectSubProjects] = await Promise.all([
+                apiRequest(`/api/projects/${project.projectId}/members`),
+                apiRequest(`/api/projects/${project.projectId}/subprojects`)
+            ]);
+
+            projectMembers.forEach((member) => membersById.set(member.employeeId, member));
+            subProjects.push(...projectSubProjects);
+
+            await Promise.all(projectSubProjects.map(async (subProject) => {
+                const subProjectTasks = await apiRequest(`/api/projects/${project.projectId}/subprojects/${subProject.subProjectId}/tasks`);
+                tasks.push(...subProjectTasks);
+
+                await Promise.all(subProjectTasks.map(async (task) => {
+                    const taskSubTasks = await apiRequest(
+                        `/api/projects/${project.projectId}/subprojects/${subProject.subProjectId}/tasks/${task.taskId}/subtasks`
+                    );
+                    subTasks.push(...taskSubTasks);
+                }));
+            }));
+        }));
+
+        state.dashboard.members = [...membersById.values()];
+        state.dashboard.subProjects = subProjects;
+        state.dashboard.tasks = tasks;
+        state.dashboard.subTasks = subTasks;
+    } catch (error) {
+        showWorkspaceMessage(error.message);
+    } finally {
+        state.dashboard.isLoading = false;
+    }
+}
+
 function renderAllLists() {
+    renderDashboard();
     renderProjects();
     renderMembers();
     renderSubProjects();
@@ -255,7 +324,7 @@ function renderAllLists() {
 }
 
 function setActiveView(view, updateHash = true) {
-    state.activeView = isValidView(view) ? view : "projects";
+    state.activeView = isValidView(view) ? view : "dashboard";
     if (updateHash) {
         history.replaceState(null, "", `#${state.activeView}`);
     }
@@ -271,6 +340,59 @@ function renderActiveView() {
         link.classList.toggle("active", link.dataset.view === state.activeView);
     });
     workspaceTitle.textContent = viewTitle(state.activeView);
+}
+
+function renderDashboard() {
+    dashboardStats.innerHTML = "";
+    dashboardBreakdown.innerHTML = "";
+    dashboardActivity.innerHTML = "";
+    dashboardWelcome.textContent = state.currentEmployee
+        ? `Welcome back, ${state.currentEmployee.username}`
+        : "Welcome back";
+
+    if (!state.currentEmployee) {
+        dashboardStats.appendChild(emptyItem("Log in to see dashboard metrics"));
+        return;
+    }
+    if (state.dashboard.isLoading) {
+        dashboardStats.appendChild(emptyItem("Loading dashboard"));
+        return;
+    }
+
+    const metrics = dashboardMetrics();
+    [
+        { label: "Active Projects", value: metrics.activeProjects },
+        { label: "Tasks", value: metrics.totalTasks },
+        { label: "Developers", value: metrics.developers }
+    ].forEach((metric) => dashboardStats.appendChild(metricCard(metric.label, metric.value)));
+
+    [
+        { label: "Active", value: metrics.activeTasks },
+        { label: "Completed", value: metrics.completedTasks },
+        { label: "Late Tasks", value: metrics.lateTasks }
+    ].forEach((metric) => dashboardBreakdown.appendChild(metricCard(metric.label, metric.value, "compact")));
+
+    if (state.projects.length === 0) {
+        dashboardActivity.appendChild(emptyItem(isProjectManager()
+            ? "No projects yet. Create a project to start building the workspace."
+            : "No projects assigned yet."));
+        return;
+    }
+
+    state.projects.slice(0, 4).forEach((project) => {
+        dashboardActivity.appendChild(createListItem({
+            isActive: state.selectedProject?.projectId === project.projectId,
+            title: project.projectName,
+            meta: [
+                project.projectCustomer || "No customer",
+                projectPeriod(project)
+            ],
+            onSelect: async () => {
+                await selectProject(project);
+                setActiveView("subprojects");
+            }
+        }));
+    });
 }
 
 function renderProjects() {
@@ -850,7 +972,9 @@ async function removeProjectMember(member) {
 
 async function reloadProjectMembers() {
     state.projectMembers = await apiRequest(`/api/projects/${state.selectedProject.projectId}/members`);
+    await loadDashboardData();
     renderMembers();
+    renderDashboard();
     updateCreateButtons();
 }
 
@@ -858,6 +982,7 @@ async function reloadSubProjects() {
     const path = subProjectsPath();
     clearSelections("subProject");
     state.subProjects = await apiRequest(path);
+    await loadDashboardData();
     renderAllLists();
     updateCreateButtons();
 }
@@ -866,13 +991,15 @@ async function reloadTasks() {
     const path = tasksPath();
     clearSelections("task");
     state.tasks = await apiRequest(path);
+    await loadDashboardData();
     renderAllLists();
     updateCreateButtons();
 }
 
 async function reloadSubTasks() {
     state.subTasks = await apiRequest(subTasksPath());
-    renderSubTasks();
+    await loadDashboardData();
+    renderAllLists();
 }
 
 function clearSelections(level) {
@@ -896,6 +1023,13 @@ function clearSelections(level) {
 function resetState() {
     state.currentEmployee = null;
     state.projectMembers = [];
+    state.dashboard = {
+        isLoading: false,
+        members: [],
+        subProjects: [],
+        tasks: [],
+        subTasks: []
+    };
     clearSelections("project");
 }
 
@@ -904,11 +1038,12 @@ function initialViewFromHash() {
 }
 
 function isValidView(view) {
-    return ["projects", "members", "subprojects", "tasks", "subtasks"].includes(view);
+    return ["dashboard", "projects", "members", "subprojects", "tasks", "subtasks"].includes(view);
 }
 
 function viewTitle(view) {
     return {
+        dashboard: "Dashboard",
         projects: "Projects",
         members: "Members",
         subprojects: "Subprojects",
@@ -975,6 +1110,55 @@ function selectField(name, label, options, value = "", required = false) {
 
 function dateBounds(min, max) {
     return { min: min || "", max: max || "" };
+}
+
+function dashboardMetrics() {
+    const tasks = state.dashboard.tasks;
+    const subTasks = state.dashboard.subTasks;
+    const workItems = [...tasks, ...subTasks];
+    const completedTasks = workItems.filter((item) => itemStatus(item) === "COMPLETED").length;
+
+    return {
+        activeProjects: state.projects.length,
+        totalTasks: tasks.length,
+        developers: state.dashboard.members.filter((member) => member.role === "TEAM_MEMBER").length,
+        activeTasks: workItems.filter((item) => itemStatus(item) !== "COMPLETED").length,
+        completedTasks,
+        lateTasks: workItems.filter(isLateWorkItem).length
+    };
+}
+
+function metricCard(label, value, variant = "") {
+    const card = document.createElement("article");
+    card.className = `metric-card ${variant}`.trim();
+    card.innerHTML = `
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value)}</strong>
+    `;
+    return card;
+}
+
+function itemStatus(item) {
+    return item.taskStatus || item.subTaskStatus || "";
+}
+
+function itemDeadline(item) {
+    return item.taskDeadline || item.subTaskDeadline || "";
+}
+
+function isLateWorkItem(item) {
+    const deadline = itemDeadline(item);
+    if (!deadline || itemStatus(item) === "COMPLETED") {
+        return false;
+    }
+    return new Date(`${deadline}T23:59:59`) < new Date();
+}
+
+function projectPeriod(project) {
+    if (project.projectStartDate && project.projectDeadline) {
+        return `${formatDate(project.projectStartDate)} to ${formatDate(project.projectDeadline)}`;
+    }
+    return "No period set";
 }
 
 function formatAllowedPeriod({ min, max }) {

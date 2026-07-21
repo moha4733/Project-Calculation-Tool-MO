@@ -96,7 +96,8 @@
                 </div>
             </div>
             <nav class="nav-list" aria-label="Workspace navigation">
-                <a href="#projects" class="nav-link active" data-view="projects">Projects</a>
+                <a href="#dashboard" class="nav-link active" data-view="dashboard">Dashboard</a>
+                <a href="#projects" class="nav-link" data-view="projects">Projects</a>
                 <a href="#members" class="nav-link" data-view="members">Members</a>
                 <a href="#subprojects" class="nav-link" data-view="subprojects">Subprojects</a>
                 <a href="#tasks" class="nav-link" data-view="tasks">Tasks</a>
@@ -108,12 +109,33 @@
             <header class="topbar">
                 <div>
                     <p id="userKicker" class="eyebrow">Workspace</p>
-                    <h1 id="workspaceTitle">Projects</h1>
+                    <h1 id="workspaceTitle">Dashboard</h1>
                 </div>
                 <button id="logoutButton" class="secondary" type="button">Logout</button>
             </header>
 
             <div class="workspace-grid">
+                <section id="dashboard" class="panel dashboard-panel" data-view-panel="dashboard">
+                    <div class="dashboard-hero">
+                        <div>
+                            <p class="section-kicker">Overview</p>
+                            <h2 id="dashboardWelcome">Welcome back</h2>
+                        </div>
+                        <button id="refreshDashboardButton" class="icon-button secondary" type="button" title="Refresh dashboard">↻</button>
+                    </div>
+
+                    <div id="dashboardStats" class="metric-grid"></div>
+                    <div id="dashboardBreakdown" class="breakdown-grid"></div>
+
+                    <div class="dashboard-section">
+                        <div>
+                            <p class="section-kicker">Focus</p>
+                            <h2>Latest active projects</h2>
+                        </div>
+                        <div id="dashboardActivity" class="list"></div>
+                    </div>
+                </section>
+
                 <aside id="projects" class="panel list-panel" data-view-panel="projects">
                     <div class="panel-header">
                         <div>

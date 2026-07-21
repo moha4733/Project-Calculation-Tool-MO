@@ -265,6 +265,66 @@ h2 {
     box-shadow: 0 1px 2px rgba(23, 32, 38, 0.04);
 }
 
+.dashboard-panel {
+    display: grid;
+    gap: 18px;
+}
+
+.dashboard-hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.metric-grid,
+.breakdown-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.breakdown-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.metric-card {
+    min-height: 112px;
+    padding: 16px;
+    background: var(--surface-soft);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.metric-card span {
+    display: block;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.metric-card strong {
+    display: block;
+    margin-top: 18px;
+    font-size: 34px;
+    line-height: 1;
+}
+
+.metric-card.compact {
+    min-height: 96px;
+    background: #ffffff;
+}
+
+.dashboard-section {
+    display: grid;
+    gap: 12px;
+    margin-top: 4px;
+}
+
 .list-panel {
     min-height: calc(100vh - 146px);
 }
@@ -555,7 +615,7 @@ button.secondary {
     }
 
     .nav-list {
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .panel.is-active-view,
@@ -579,6 +639,8 @@ button.secondary {
     }
 
     .form-row,
+    .metric-grid,
+    .breakdown-grid,
     .workspace-grid,
     .topbar,
     .item,
